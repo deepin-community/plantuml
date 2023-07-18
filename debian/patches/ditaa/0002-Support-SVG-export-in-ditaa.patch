@@ -1,0 +1,41 @@
+From: Tomas Janousek <tomi@nomi.cz>
+Date: Wed, 20 Nov 2019 23:38:12 +0100
+Subject: Support SVG export in ditaa
+
+---
+ src/net/sourceforge/plantuml/ditaa/PSystemDitaa.java | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/src/net/sourceforge/plantuml/ditaa/PSystemDitaa.java b/src/net/sourceforge/plantuml/ditaa/PSystemDitaa.java
+index f8c7e1c..6bb3604 100644
+--- a/src/net/sourceforge/plantuml/ditaa/PSystemDitaa.java
++++ b/src/net/sourceforge/plantuml/ditaa/PSystemDitaa.java
+@@ -81,7 +81,6 @@ public class PSystemDitaa extends AbstractPSystem {
+ 			return ImageDataSimple.ok();
+ 		}
+ 
+-		// ditaa can only export png so file format is mostly ignored
+ 		try {
+ 			// final ConversionOptions options = new ConversionOptions();
+ 			final Object options = Class.forName("org.stathissideris.ascii2image.core.ConversionOptions").newInstance();
+@@ -118,6 +117,20 @@ public class PSystemDitaa extends AbstractPSystem {
+ 			final Class<?> clDiagram = Class.forName("org.stathissideris.ascii2image.graphics.Diagram");
+ 			final Object diagram = clDiagram.getConstructor(grid.getClass(), options.getClass()).newInstance(grid, options);
+ 
++			if (fileFormat.getFileFormat() == FileFormat.SVG) {
++				// final SVGRenderer svgRenderer = new SVGRenderer();
++				final Object svgRenderer = Class.forName("org.stathissideris.ascii2image.graphics.SVGRenderer")
++						.newInstance();
++
++				// final String content = svgRenderer.renderToImage(diagram, renderingOptions);
++				final Method renderToImage = svgRenderer.getClass().getMethod("renderToImage", diagram.getClass(),
++						renderingOptions.getClass());
++				final String content = (String) renderToImage.invoke(svgRenderer, diagram, renderingOptions);
++
++				os.write(content.getBytes());
++				return ImageDataSimple.ok();
++			}
++
+ 			// final BitmapRenderer bitmapRenderer = new BitmapRenderer();
+ 			final Object bitmapRenderer = Class.forName("org.stathissideris.ascii2image.graphics.BitmapRenderer")
+ 					.newInstance();

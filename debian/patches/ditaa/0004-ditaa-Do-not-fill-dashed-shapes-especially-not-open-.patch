@@ -1,0 +1,21 @@
+From: Tomas Janousek <tomi@nomi.cz>
+Date: Wed, 20 Nov 2019 23:58:53 +0100
+Subject: ditaa: Do not fill dashed shapes, especially not open ones
+
+---
+ src/org/stathissideris/ascii2image/graphics/SVGBuilder.java | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/src/org/stathissideris/ascii2image/graphics/SVGBuilder.java b/src/org/stathissideris/ascii2image/graphics/SVGBuilder.java
+index 08432b4..169608b 100644
+--- a/src/org/stathissideris/ascii2image/graphics/SVGBuilder.java
++++ b/src/org/stathissideris/ascii2image/graphics/SVGBuilder.java
+@@ -207,8 +207,6 @@ public class SVGBuilder {
+                 renderPath(shape, commands, "none", fill);
+             }
+ 
+-        } else if (shape.isStrokeDashed()) {
+-            fill = "white";
+         }
+ 
+         if (shape.getType() != DiagramShape.TYPE_ARROWHEAD) {

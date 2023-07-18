@@ -1,0 +1,11 @@
+#!/bin/sh
+
+set -e
+
+plantuml -o "$AUTOPKGTEST_TMP" -ttxt debian/tests/seq.txt
+cp "$AUTOPKGTEST_TMP"/seq.* "$AUTOPKGTEST_ARTIFACTS"
+cmp "$AUTOPKGTEST_TMP/seq.atxt" debian/tests/seq.atxt
+
+plantuml -o "$AUTOPKGTEST_TMP" -tutxt debian/tests/seq.txt
+cp "$AUTOPKGTEST_TMP"/seq.* "$AUTOPKGTEST_ARTIFACTS"
+cmp "$AUTOPKGTEST_TMP/seq.utxt" debian/tests/seq.utxt

@@ -1,0 +1,174 @@
+=head1 NAME
+
+plantuml - generate UML diagrams from a text description
+
+=head1 SYNOPSIS
+
+B<plantuml> [I<options>] I<files/dirs>...
+
+=head1 DESCRIPTION
+
+I<PlantUML> is used to draw UML diagrams using a simple and human
+readable text description.
+
+Note that B<graphviz> is required to be installed for generation of
+all diagrams except sequence diagrams.
+
+When files/directories are given, they are processed in batch mode.
+Otherwise, a GUI window appears. It allows user to browse directories and
+view diagrams generated from suitable files (must have one of the
+following extensions: I<.txt>, I<.tex>, I<.java>, I<.htm>, I<.html>, I<.c>,
+I<.h>, I<.cpp>).
+
+You can use the following wildcards in files/dirs:
+
+=over
+
+=item B<*>
+means any characters but '/'
+
+=item B<?>
+one and only one character but '/'
+
+=item B<**>
+means any characters (used to recurse through directories)
+
+=back
+
+=head1 OPTIONS
+
+=over
+
+=item B<-t>I<format>
+
+Generate images in one of the following formats:
+
+=over
+
+=item B<png>
+PNG image (default)
+
+=item B<svg>
+SVG image
+
+=item B<eps>
+EPS image
+
+=item B<pdf>
+PDF image
+
+=item B<vdx>
+VDX image
+
+=item B<xmi>
+XMI file for class diagram
+
+=item B<scxml>
+SCXML file for state diagram
+
+=item B<html>
+HTML file for class diagram
+
+=item B<txt>
+ASCII art
+
+=item B<utxt>
+ASCII art using Unicode characters
+
+=item B<latex>
+LaTeX/TikZ format
+
+=item B<latex:nopreamble>
+LaTeX/TikZ format without preamble
+
+=back
+
+=item B<-output> I<dir>, B<-o> I<dir>
+
+Generate images in the specified directory.
+
+=item B<-config> I<file>
+
+Read the provided config file before each diagram.
+
+=item B<-charset> I<encoding>
+
+Use a specific encoding (default is UTF-8).
+
+=item B<-exclude> I<pattern>, B<-x> I<pattern>
+
+Exclude files that match the provided pattern.
+
+=item B<-metadata>
+
+Retrieve I<PlantUML sources from PNG images.>
+
+=item B<-version>
+
+Display information about I<PlantUML and Java versions.>
+
+=item B<-verbose>, B<-v>
+
+Be more verbose.
+
+=item B<-quiet>
+
+Don't print error messages.
+
+=item B<-keepfiles>
+
+Do NOT delete temporary files after process.
+
+=item B<-help>, B<-h>
+Display a help message.
+
+=item B<-testdot>
+Test the installation of B<graphviz>.
+
+=item B<-graphvizdot> I<path>
+Specify the B<dot> executable path.
+
+=item B<-pipe>, B<-p>
+Use stdin for I<PlantUML> source and stdout for PNG/SVG
+generation.
+
+=item B<-computeurl>
+Compute the encoded URL of a I<PlantUML> source file.
+
+=item B<-decodeurl>
+Retrieve the I<PlantUML> source from an encoded URL.
+
+=back
+
+This list of options is not exhaustive. For more information, run B<plantuml -help>.
+
+For more documentation, see the I<PlantUML>'s website: L<< https://plantuml.com/command-line >>.
+
+=head1 ENVIRONMENT
+
+=over
+
+=item I<DISPLAY>
+
+If not set or empty, uses Java's headless mode to run I<PlantUML>.
+
+=item I<GRAPHVIZ_DOT>
+
+Similarly to B<-graphvizdot>, can be used to specify the path to the B<dot> executable. If both I<GRAPHVIZ_DOT> and B<-graphvizdot> are used, the command-line setting takes the precedence.
+
+=back
+
+=head1 NOTES
+
+The Debian package for I<PlantUML> comes without Easter eggs, XEarth diagram support or inbuilt FTP server, Telnet server or a Sudoku game.
+
+=head1 SEE ALSO
+
+L<graphviz(1)>
+
+=head1 AUTHOR
+
+I<PlantUML> was written by Arnaud Roques L<< <plantuml@gmail.com> >>.
+
+This manual page was written by Ilya Paramonov L<< <ivparamonov@gmail.com> >>
+and updated by Andrej Shadura L<< <andrewsh@debian.org> >>, for the Debian project (and may be used by others).

@@ -1,0 +1,5 @@
+pdf.patch
+ditaa/0001-Update-ditaa.patch
+ditaa/0002-Support-SVG-export-in-ditaa.patch
+ditaa/0003-ditaa-Force-String.format-locale-to-fix-decimal-sepa.patch
+ditaa/0004-ditaa-Do-not-fill-dashed-shapes-especially-not-open-.patch

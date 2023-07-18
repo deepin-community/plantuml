@@ -1,5 +1,122 @@
-template-repository (1.0-1) unstable; urgency=medium
+plantuml (1:1.2020.2+ds-3) unstable; urgency=medium
 
-  * Initial release
+  [ Tomas Janousek ]
+  * Update ditaa (Closes: #966443).
+  * Support SVG export in ditaa.
+  * ditaa: Force String.format locale to fix decimal separator.
+  * ditaa: Do not fill dashed shapes, especially not open ones.
 
- -- Tsic404 <liuheng@deepin.org>  Sat, 28 Jan 2023 13:46:49 +0800
+  [ Victor Westerhuis ]
+  * Use headless mode if default-jre is not installed (Closes: #1032506).
+
+  [ Adrian Friedli ]
+  * Improve launcher script.
+
+  [ Andrej Shadura ]
+  * Add autopkgtests.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Wed, 08 Mar 2023 12:22:25 +0100
+
+plantuml (1:1.2020.2+ds-2) unstable; urgency=medium
+
+  [ Debian Janitor ]
+  * Bump debhelper from old 12 to 13.
+  * Set upstream metadata fields: Repository.
+  * Update standards version to 4.6.0, no changes needed.
+
+  [ Tomas Janousek ]
+  * debian: Drop ditaa dependency (uses embedded ditaa anyway)
+
+ -- Andrej Shadura <andrewsh@debian.org>  Fri, 20 Jan 2023 20:53:26 +0100
+
+plantuml (1:1.2020.2+ds-1) unstable; urgency=medium
+
+  * New upstream release (Closes: #944122).
+  * Refresh the PDF patch.
+  * Detect headless setups and enable AWT headless mode.
+    Thanks to Daniel Silverstone.
+  * Generate the manpage from the POD source at build time.
+  * Depend on default-jre-headless instead of default-jre (Closes: #927340).
+  * Bump Standards-Version to 4.5.0.
+  * Use dh compat level 12.
+  * Update the copyrights.
+  * Set upstream metadata fields: Bug-Database, Bug-Submit.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Tue, 10 Mar 2020 18:57:51 +0100
+
+plantuml (1:1.2018.13+ds-2) unstable; urgency=medium
+
+  [ Hakan Dilek ]
+  * Use system proxy (LP: #1819119).
+
+ -- Andrej Shadura <andrewsh@debian.org>  Sat, 13 Jul 2019 01:25:00 +0200
+
+plantuml (1:1.2018.13+ds-1) unstable; urgency=medium
+
+  [ Andrej Shadura ]
+  * Remove Easter eggs and other misfeatures from the upstream code
+    (see https://github.com/plantuml/plantuml/pull/94).
+
+  [ Ondřej Nový ]
+  * d/changelog: Remove trailing whitespaces
+
+ -- Andrej Shadura <andrewsh@debian.org>  Thu, 29 Nov 2018 22:20:44 +0100
+
+plantuml (1:1.2018.9-1) unstable; urgency=medium
+
+  [ Alex Kirchhoff ]
+  * New upstream version (1.2018.9).
+  * Update pdf.patch:
+    - Add libavalon-framework-java, libcommons-io-java,
+      libcommons-logging-java, libxml-commons-external-java,
+      libxmlgraphics-commons-java as dependencies.
+  * Update the description with new features
+    (Closes: #897414).
+  * Update Vcs-* to point to Salsa.
+  * Update Standards-Version from 4.0.0 to 4.1.5 (no change needed)
+
+ -- Andrej Shadura <andrewsh@debian.org>  Sun, 05 Aug 2018 11:39:13 +0200
+
+plantuml (1:1.2017.15-1) unstable; urgency=medium
+
+  * Fix "New version available" package upstream release (1.2017.15), new
+    epoch (Closes: #868286)
+  * Update pdf.patch, add libjlatexmath-java as dependency
+  * Update Standards-Version from 3.9.6 to 4.0.0 (no change required)
+  * Remove dependency on non-existant java-runtime package
+  * Update debian/copyright
+
+ -- Christopher Hoskin <mans0954@debian.org>  Sat, 16 Sep 2017 20:54:51 +0100
+
+plantuml (8039-2) unstable; urgency=medium
+
+  * Add myself to Uploaders
+  * Add Vcs-* fields to debian/control
+  * Update debian/watch and Homepage
+
+ -- Christopher Hoskin <mans0954@debian.org>  Wed, 06 Sep 2017 22:51:05 +0100
+
+plantuml (8039-1) unstable; urgency=medium
+
+  * New upstream release (Closes: #816501).
+  * Unbreak PDF rendering (Closes: #807928):
+    - Depend on libfop-java and libbatik-java
+    - Edit Class-Path to point to batik and fop.
+  * Add watch file (Closes: #822094).
+  * Update debian/copyright (Closes: #822092).
+
+ -- Andrew Shadura <andrewsh@debian.org>  Sat, 30 Apr 2016 13:37:08 +0200
+
+plantuml (8024-2) unstable; urgency=medium
+
+  * Recommend graphviz, not depend on it (Closes: #793104).
+  * Allow non-default Java runtimes (Closes: #793110).
+  * Mention output formats in the long description (Closes: #793112).
+
+ -- Andrew Shadura <andrewsh@debian.org>  Tue, 21 Jul 2015 15:02:31 +0200
+
+plantuml (8024-1) unstable; urgency=medium
+
+  * Initial upload.
+
+ -- Andrew Shadura <andrewsh@debian.org>  Tue, 05 May 2015 15:52:55 +0200

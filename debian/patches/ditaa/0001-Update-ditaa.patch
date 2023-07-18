@@ -1,0 +1,4429 @@
+From: Tomas Janousek <tomi@nomi.cz>
+Date: Wed, 20 Nov 2019 23:37:14 +0100
+Subject: Update ditaa
+
+---
+ build.xml                                          |   7 +-
+ .../sourceforge/plantuml/ditaa/PSystemDitaa.java   |  27 +-
+ .../ascii2image/core/ConfigurationParser.java      | 340 +++++++++--------
+ .../ascii2image/core/ConversionOptions.java        |  80 +++-
+ .../ascii2image/core/DebugUtils.java               |  19 +
+ .../ascii2image/core/DocBookConverter.java         |  70 ----
+ .../stathissideris/ascii2image/core/FileUtils.java |  87 +++--
+ src/org/stathissideris/ascii2image/core/Pair.java  |  19 +
+ .../ascii2image/core/PerformanceTester.java        |  64 ++++
+ .../ascii2image/core/ProcessingOptions.java        |  29 +-
+ .../ascii2image/core/RenderingOptions.java         | 100 ++---
+ .../core/Shape3DOrderingComparator.java            |  34 +-
+ .../ascii2image/core/ShapeAreaComparator.java      |  46 +++
+ .../ascii2image/graphics/BitmapRenderer.java       | 160 ++++----
+ .../graphics/CompositeDiagramShape.java            |  35 +-
+ .../graphics/CustomShapeDefinition.java            |  23 +-
+ .../ascii2image/graphics/Diagram.java              | 259 +++++++------
+ .../ascii2image/graphics/DiagramComponent.java     |  30 +-
+ .../ascii2image/graphics/DiagramShape.java         |  81 ++--
+ .../ascii2image/graphics/DiagramText.java          |  24 +-
+ .../ascii2image/graphics/FontMeasurer.java         |  33 +-
+ .../ascii2image/graphics/ImageHandler.java         | 111 ++++--
+ .../ascii2image/graphics/OffScreenSVGRenderer.java | 138 +++++++
+ .../ascii2image/graphics/SVGBuilder.java           | 416 +++++++++++++++++++++
+ .../ascii2image/graphics/SVGRenderer.java          |  18 +
+ .../ascii2image/graphics/ShapeEdge.java            |  29 +-
+ .../ascii2image/graphics/ShapePoint.java           |  24 +-
+ .../ascii2image/text/AbstractCell.java             |  23 +-
+ .../ascii2image/text/AbstractionGrid.java          |  33 +-
+ .../stathissideris/ascii2image/text/CellSet.java   | 103 +++--
+ .../ascii2image/text/GridPattern.java              |  29 +-
+ .../ascii2image/text/GridPatternGroup.java         |  23 +-
+ .../ascii2image/text/StringUtils.java              |  25 +-
+ .../stathissideris/ascii2image/text/TextGrid.java  | 138 ++++---
+ 34 files changed, 1760 insertions(+), 917 deletions(-)
+ delete mode 100644 src/org/stathissideris/ascii2image/core/DocBookConverter.java
+ create mode 100644 src/org/stathissideris/ascii2image/core/PerformanceTester.java
+ create mode 100644 src/org/stathissideris/ascii2image/core/ShapeAreaComparator.java
+ create mode 100644 src/org/stathissideris/ascii2image/graphics/OffScreenSVGRenderer.java
+ create mode 100644 src/org/stathissideris/ascii2image/graphics/SVGBuilder.java
+ create mode 100644 src/org/stathissideris/ascii2image/graphics/SVGRenderer.java
+
+diff --git a/build.xml b/build.xml
+index ccda508..f976b78 100644
+--- a/build.xml
++++ b/build.xml
+@@ -20,7 +20,12 @@
+ 	<target name="compile">
+ 		<delete dir="build" />
+ 		<mkdir dir="build" />
+-		<javac target="7" srcdir="src" destdir="build" debug="on" />
++		<javac target="7" srcdir="src" destdir="build" debug="on">
++			<classpath>
++				<pathelement location="/usr/share/java/batik-all.jar" />
++				<pathelement location="/usr/share/java/xml-apis-ext.jar" />
++			</classpath>
++		</javac>
+ 		<copy file="src/net/sourceforge/plantuml/version/logo.png"
+ 			todir="build/net/sourceforge/plantuml/version" />
+ 		<copy file="src/net/sourceforge/plantuml/version/favicon.png"
+diff --git a/src/net/sourceforge/plantuml/ditaa/PSystemDitaa.java b/src/net/sourceforge/plantuml/ditaa/PSystemDitaa.java
+index 9f13178..f8c7e1c 100644
+--- a/src/net/sourceforge/plantuml/ditaa/PSystemDitaa.java
++++ b/src/net/sourceforge/plantuml/ditaa/PSystemDitaa.java
+@@ -53,7 +53,6 @@ import net.sourceforge.plantuml.core.ImageData;
+ public class PSystemDitaa extends AbstractPSystem {
+ 
+ 	// private ProcessingOptions processingOptions;
+-	private Object processingOptions;
+ 	private final boolean dropShadows;
+ 	private final String data;
+ 	private final float scale;
+@@ -63,16 +62,6 @@ public class PSystemDitaa extends AbstractPSystem {
+ 		this.data = data;
+ 		this.dropShadows = dropShadows;
+ 		this.performSeparationOfCommonEdges = performSeparationOfCommonEdges;
+-		try {
+-			this.processingOptions = Class.forName("org.stathissideris.ascii2image.core.ProcessingOptions")
+-					.newInstance();
+-			// this.processingOptions.setPerformSeparationOfCommonEdges(performSeparationOfCommonEdges);
+-			this.processingOptions.getClass().getMethod("setPerformSeparationOfCommonEdges", boolean.class)
+-					.invoke(this.processingOptions, performSeparationOfCommonEdges);
+-		} catch (Exception e) {
+-			e.printStackTrace();
+-			this.processingOptions = null;
+-		}
+ 		this.scale = scale;
+ 	}
+ 
+@@ -94,7 +83,6 @@ public class PSystemDitaa extends AbstractPSystem {
+ 
+ 		// ditaa can only export png so file format is mostly ignored
+ 		try {
+-			// ditaa0_9.jar
+ 			// final ConversionOptions options = new ConversionOptions();
+ 			final Object options = Class.forName("org.stathissideris.ascii2image.core.ConversionOptions").newInstance();
+ 
+@@ -106,6 +94,14 @@ public class PSystemDitaa extends AbstractPSystem {
+ 			final Method setScale = renderingOptions.getClass().getMethod("setScale", float.class);
+ 			setScale.invoke(renderingOptions, scale);
+ 
++			// final ProcessingOptions = options.processingOptions;
++			final Field f_processingOptions = options.getClass().getField("processingOptions");
++			final Object processingOptions = f_processingOptions.get(options);
++
++			// processingOptions.setPerformSeparationOfCommonEdges(performSeparationOfCommonEdges);
++			final Method setPerformSeparationOfCommonEdges = processingOptions.getClass().getMethod("setPerformSeparationOfCommonEdges", boolean.class);
++			setPerformSeparationOfCommonEdges.invoke(processingOptions, performSeparationOfCommonEdges);
++
+ 			// options.setDropShadows(dropShadows);
+ 			final Method setDropShadows = options.getClass().getMethod("setDropShadows", boolean.class);
+ 			setDropShadows.invoke(options, dropShadows);
+@@ -118,12 +114,9 @@ public class PSystemDitaa extends AbstractPSystem {
+ 					Class.forName("org.stathissideris.ascii2image.core.ProcessingOptions"));
+ 			initialiseWithText.invoke(grid, data, null);
+ 
+-			// final Diagram diagram = new Diagram(grid, options, processingOptions);
++			// final Diagram diagram = new Diagram(grid, options);
+ 			final Class<?> clDiagram = Class.forName("org.stathissideris.ascii2image.graphics.Diagram");
+-			clDiagram.getConstructor(grid.getClass(), options.getClass(), processingOptions.getClass()).newInstance(
+-					grid, options, processingOptions);
+-			final Object diagram = clDiagram.getConstructor(grid.getClass(), options.getClass(),
+-					processingOptions.getClass()).newInstance(grid, options, processingOptions);
++			final Object diagram = clDiagram.getConstructor(grid.getClass(), options.getClass()).newInstance(grid, options);
+ 
+ 			// final BitmapRenderer bitmapRenderer = new BitmapRenderer();
+ 			final Object bitmapRenderer = Class.forName("org.stathissideris.ascii2image.graphics.BitmapRenderer")
+diff --git a/src/org/stathissideris/ascii2image/core/ConfigurationParser.java b/src/org/stathissideris/ascii2image/core/ConfigurationParser.java
+index ee27881..96800b6 100644
+--- a/src/org/stathissideris/ascii2image/core/ConfigurationParser.java
++++ b/src/org/stathissideris/ascii2image/core/ConfigurationParser.java
+@@ -1,21 +1,20 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.core;
+@@ -36,155 +35,170 @@ import org.xml.sax.helpers.DefaultHandler;
+ 
+ public class ConfigurationParser {
+ 
+-	private static final boolean DEBUG = false;
+-	
+-	private static final String INLCUDE_TAG_NAME = "include";
+-	private static final String SHAPE_TAG_NAME = "shape";
+-	private static final String SHAPE_GROUP_TAG_NAME = "shapes";
+-	
+-	private String currentDir = "";
+-	private File configFile;
+-	
+-	private HashMap<String, CustomShapeDefinition> shapeDefinitions =
+-		new HashMap<String, CustomShapeDefinition>();
+-	
+-	public Collection<CustomShapeDefinition> getShapeDefinitions() {
+-		return shapeDefinitions.values();
+-	}
+-
+-	public HashMap<String, CustomShapeDefinition> getShapeDefinitionsHash() {
+-		return shapeDefinitions;
+-	}
+-	
+-	public void parseFile(File file)
+-		throws ParserConfigurationException, SAXException, IOException
+-	{
+-		configFile = file;
+-		
+-		DefaultHandler handler = new XMLHandler();
+-		
+-		// Use the default (non-validating) parser
+-		SAXParserFactory factory = SAXParserFactory.newInstance();
+-
+-		SAXParser saxParser = factory.newSAXParser();
+-		saxParser.parse(file, handler);
+-	}
+-	
+-	private class XMLHandler extends DefaultHandler{
+-		public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
+-			if(qName.equals(SHAPE_GROUP_TAG_NAME)){
+-				if(attributes.getLength() == 1){
+-					currentDir = attributes.getValue(0).trim();
+-					if(currentDir.equals("")) currentDir = configFile.getParentFile().getAbsolutePath();
+-				} else {
+-					//the dir that contains the config file:
+-					currentDir = configFile.getParentFile().getAbsolutePath();
+-				}
+-			}
+-			if(qName.equals(SHAPE_TAG_NAME)){
+-				CustomShapeDefinition definition = new CustomShapeDefinition();
+-				
+-				int len = attributes.getLength();
+-				for(int i = 0; i < len; i++){
+-					String name = attributes.getQName(i);
+-					String value = attributes.getValue(i);
+-					
+-					if(name.equals("tag")){
+-						definition.setTag(value);
+-					} else if(name.equals("stretch")){
+-						definition.setStretches(getBooleanFromAttributeValue(value));
+-					} else if(name.equals("border")){
+-						definition.setHasBorder(getBooleanFromAttributeValue(value));
+-					} else if(name.equals("shadow")){
+-						definition.setDropsShadow(getBooleanFromAttributeValue(value));
+-					} else if(name.equals("comment")){
+-						definition.setComment(value);
+-					} else if(name.equals("filename")){
+-						File file = new File(value);
+-						if(file.isAbsolute()){
+-							definition.setFilename(value);
+-						} else { //relative to the location of the config file or to the group's base dir
+-							definition.setFilename(createFilename(currentDir, value));
+-						}
+-					}
+-				}
+-				
+-				if(shapeDefinitions.containsKey(definition.getTag())){
+-					CustomShapeDefinition oldDef = shapeDefinitions.get(definition.getTag());
+-					System.err.println(
+-						"*** Warning: shape \""+oldDef.getTag()+"\" (file: "
+-						+oldDef.getFilename()+") has been redefined as file: "
+-						+definition.getFilename()
+-					);
+-				}
+-				
+-				File file = new File(definition.getFilename());
+-				if(file.exists()){
+-					shapeDefinitions.put(definition.getTag(), definition);
+-					if(DEBUG) System.out.println(definition);
+-				} else {
+-					System.err.println("File "+file+" does not exist, skipping tag "+definition.getTag());
+-				}
+-				
+-			}
+-			if(qName.equals(INLCUDE_TAG_NAME)){
+-				if(attributes.getLength() == 1){
+-					File includedFile = new File(attributes.getValue(0).trim());
+-					
+-					if(!includedFile.isAbsolute()){
+-						includedFile = new File(
+-								createFilename(
+-									configFile.getParentFile().getAbsolutePath(),
+-									includedFile.getPath()));
+-					}
+-					
+-					if(!includedFile.exists()){
+-						System.err.println("Included file "+includedFile+" does not exist, skipping");
+-						return;
+-					}
+-					
+-					ConfigurationParser configParser = new ConfigurationParser();
+-					try {
+-						configParser.parseFile(includedFile);
+-					} catch (ParserConfigurationException e) {
+-						e.printStackTrace();
+-					} catch (SAXException e) {
+-						e.printStackTrace();
+-					} catch (IOException e) {
+-						e.printStackTrace();
+-					}
+-					HashMap<String, CustomShapeDefinition> shapes = configParser.getShapeDefinitionsHash();
+-					shapeDefinitions.putAll(shapes);
+-				}
+-			}
+-		}
+-	}
+-	
+-	private String createFilename(String baseDir, String filename){
+-		if(baseDir == null || baseDir.trim().equals("")){
+-			return filename;
+-		}
+-		if(baseDir.endsWith(File.separator)){
+-			return baseDir + filename;
+-		}
+-		return baseDir + File.separator + filename;
+-	}
+-	
+-	private boolean getBooleanFromAttributeValue(String value){
+-		value = value.toLowerCase();
+-		if("no".equals(value)) return false;
+-		if("false".equals(value)) return false;
+-		if("yes".equals(value)) return true;
+-		if("true".equals(value)) return true;
+-		throw new IllegalArgumentException("value "+value+" cannot be interpreted as a boolean");
+-	}
+-	
+-	public static void main(String argv[]) throws ParserConfigurationException, SAXException, IOException {
+-		ConfigurationParser parser = new ConfigurationParser();
+-		parser.parseFile(new File("config.xml"));
+-		parser.getShapeDefinitions();
+-	}
+-	
+-
+-	
++    private static final boolean DEBUG = false;
++
++    private static final String INLCUDE_TAG_NAME = "include";
++    private static final String SHAPE_TAG_NAME = "shape";
++    private static final String SHAPE_GROUP_TAG_NAME = "shapes";
++
++    private String currentDir = "";
++    private File configFile;
++
++    private HashMap<String, CustomShapeDefinition> shapeDefinitions = new HashMap<String, CustomShapeDefinition>();
++
++    public Collection<CustomShapeDefinition> getShapeDefinitions() {
++        return shapeDefinitions.values();
++    }
++
++    public HashMap<String, CustomShapeDefinition> getShapeDefinitionsHash() {
++        return shapeDefinitions;
++    }
++
++    public void parseFile(File file) throws ParserConfigurationException,
++            SAXException, IOException {
++        configFile = file;
++
++        DefaultHandler handler = new XMLHandler();
++
++        // Use the default (non-validating) parser
++        SAXParserFactory factory = SAXParserFactory.newInstance();
++
++        SAXParser saxParser = factory.newSAXParser();
++        saxParser.parse(file, handler);
++    }
++
++    private class XMLHandler extends DefaultHandler {
++        public void startElement(String uri, String localName, String qName,
++                Attributes attributes) throws SAXException {
++            if (qName.equals(SHAPE_GROUP_TAG_NAME)) {
++                if (attributes.getLength() == 1) {
++                    currentDir = attributes.getValue(0).trim();
++                    if (currentDir.equals(""))
++                        currentDir = configFile.getParentFile()
++                                .getAbsolutePath();
++                } else {
++                    // the dir that contains the config file:
++                    currentDir = configFile.getParentFile().getAbsolutePath();
++                }
++            }
++            if (qName.equals(SHAPE_TAG_NAME)) {
++                CustomShapeDefinition definition = new CustomShapeDefinition();
++
++                int len = attributes.getLength();
++                for (int i = 0; i < len; i++) {
++                    String name = attributes.getQName(i);
++                    String value = attributes.getValue(i);
++
++                    if (name.equals("tag")) {
++                        definition.setTag(value);
++                    } else if (name.equals("stretch")) {
++                        definition
++                                .setStretches(getBooleanFromAttributeValue(value));
++                    } else if (name.equals("border")) {
++                        definition
++                                .setHasBorder(getBooleanFromAttributeValue(value));
++                    } else if (name.equals("shadow")) {
++                        definition
++                                .setDropsShadow(getBooleanFromAttributeValue(value));
++                    } else if (name.equals("comment")) {
++                        definition.setComment(value);
++                    } else if (name.equals("filename")) {
++                        File file = new File(value);
++                        if (file.isAbsolute()) {
++                            definition.setFilename(value);
++                        } else { // relative to the location of the config file
++                            // or to the group's base dir
++                            definition.setFilename(createFilename(currentDir,
++                                    value));
++                        }
++                    }
++                }
++
++                if (shapeDefinitions.containsKey(definition.getTag())) {
++                    CustomShapeDefinition oldDef = shapeDefinitions
++                            .get(definition.getTag());
++                    System.err.println("*** Warning: shape \""
++                            + oldDef.getTag() + "\" (file: "
++                            + oldDef.getFilename()
++                            + ") has been redefined as file: "
++                            + definition.getFilename());
++                }
++
++                File file = new File(definition.getFilename());
++                if (file.exists()) {
++                    shapeDefinitions.put(definition.getTag(), definition);
++                    if (DEBUG)
++                        System.out.println(definition);
++                } else {
++                    System.err.println("File " + file
++                            + " does not exist, skipping tag "
++                            + definition.getTag());
++                }
++
++            }
++            if (qName.equals(INLCUDE_TAG_NAME)) {
++                if (attributes.getLength() == 1) {
++                    File includedFile = new File(attributes.getValue(0).trim());
++
++                    if (!includedFile.isAbsolute()) {
++                        includedFile = new File(createFilename(configFile
++                                .getParentFile().getAbsolutePath(),
++                                includedFile.getPath()));
++                    }
++
++                    if (!includedFile.exists()) {
++                        System.err.println("Included file " + includedFile
++                                + " does not exist, skipping");
++                        return;
++                    }
++
++                    ConfigurationParser configParser = new ConfigurationParser();
++                    try {
++                        configParser.parseFile(includedFile);
++                    } catch (ParserConfigurationException e) {
++                        e.printStackTrace();
++                    } catch (SAXException e) {
++                        e.printStackTrace();
++                    } catch (IOException e) {
++                        e.printStackTrace();
++                    }
++                    HashMap<String, CustomShapeDefinition> shapes = configParser
++                            .getShapeDefinitionsHash();
++                    shapeDefinitions.putAll(shapes);
++                }
++            }
++        }
++    }
++
++    private String createFilename(String baseDir, String filename) {
++        if (baseDir == null || baseDir.trim().equals("")) {
++            return filename;
++        }
++        if (baseDir.endsWith(File.separator)) {
++            return baseDir + filename;
++        }
++        return baseDir + File.separator + filename;
++    }
++
++    private boolean getBooleanFromAttributeValue(String value) {
++        value = value.toLowerCase();
++        if ("no".equals(value))
++            return false;
++        if ("false".equals(value))
++            return false;
++        if ("yes".equals(value))
++            return true;
++        if ("true".equals(value))
++            return true;
++        throw new IllegalArgumentException("value " + value
++                + " cannot be interpreted as a boolean");
++    }
++
++    public static void main(String argv[]) throws ParserConfigurationException,
++            SAXException, IOException {
++        ConfigurationParser parser = new ConfigurationParser();
++        parser.parseFile(new File("config.xml"));
++        parser.getShapeDefinitions();
++    }
++
+ }
+diff --git a/src/org/stathissideris/ascii2image/core/ConversionOptions.java b/src/org/stathissideris/ascii2image/core/ConversionOptions.java
+index 17df7a9..958f179 100644
+--- a/src/org/stathissideris/ascii2image/core/ConversionOptions.java
++++ b/src/org/stathissideris/ascii2image/core/ConversionOptions.java
+@@ -1,25 +1,35 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.core;
+ 
++//import org.apache.commons.cli.CommandLine;
++//import org.apache.commons.cli.Option;
++//import org.stathissideris.ascii2image.graphics.CustomShapeDefinition;
++//import org.xml.sax.SAXException;
++
++//import javax.xml.parsers.ParserConfigurationException;
++//import java.awt.*;
++//import java.io.File;
++//import java.io.IOException;
++//import java.io.UnsupportedEncodingException;
++//import java.util.HashMap;
+ 
+ /**
+  * 
+@@ -27,13 +37,13 @@ package org.stathissideris.ascii2image.core;
+  */
+ public class ConversionOptions {
+ 	
+-//	public ProcessingOptions processingOptions =
+-//		new ProcessingOptions();
++	public ProcessingOptions processingOptions =
++		new ProcessingOptions();
+ 	public RenderingOptions renderingOptions =
+ 		new RenderingOptions();
+ 		
+ 	public void setDebug(boolean value){
+-		// processingOptions.setPrintDebugOutput(value);
++		processingOptions.setPrintDebugOutput(value);
+ 		renderingOptions.setRenderDebugLines(value);
+ 	}
+ 	
+@@ -42,7 +52,24 @@ public class ConversionOptions {
+ 	public void setDropShadows(boolean dropShadows) {
+ 		renderingOptions.setDropShadows(dropShadows);
+ 	}
+-	
++
++//    /** Parse a color from a 6- or 8-digit hex string.  For example, FF0000 is red.
++//     *  If eight digits, last two digits are alpha. */
++//    public static Color parseColor(String hexString) {
++//        if(hexString.length() == 6) {
++//            return new Color(Integer.parseInt(hexString, 16));
++//        } else if(hexString.length() == 8) {
++//            return new Color(
++//                Integer.parseInt(hexString.substring(0,2), 16),
++//                Integer.parseInt(hexString.substring(2,4), 16),
++//                Integer.parseInt(hexString.substring(4,6), 16),
++//                Integer.parseInt(hexString.substring(6,8), 16)
++//            );
++//        } else {
++//            throw new IllegalArgumentException("Cannot interpret \""+hexString+"\" as background colour. It needs to be a 6- or 8-digit hex number, depending on whether you have transparency or not (same as HTML).");
++//        }
++//    }
++//	
+ //	public ConversionOptions(CommandLine cmdLine) throws UnsupportedEncodingException{
+ //		
+ //		processingOptions.setVerbose(cmdLine.hasOption("verbose"));
+@@ -58,8 +85,17 @@ public class ConversionOptions {
+ //		processingOptions.setAllCornersAreRound(cmdLine.hasOption("round-corners"));
+ //		processingOptions.setPerformSeparationOfCommonEdges(!cmdLine.hasOption("no-separation"));
+ //		renderingOptions.setAntialias(!cmdLine.hasOption("no-antialias"));
++//		renderingOptions.setFixedSlope(cmdLine.hasOption("fixed-slope"));
+ //
+-//
++//		if(cmdLine.hasOption("background")) {
++//			String b = cmdLine.getOptionValue("background");
++//            Color background = parseColor(b);
++//			renderingOptions.setBackgroundColor(background);
++//		}
++//		
++//		if(cmdLine.hasOption("transparent")) {
++//			renderingOptions.setBackgroundColor(new Color(0,0,0,0));
++//		}
+ //
+ //		if(cmdLine.hasOption("tabs")){
+ //			Integer tabSize = Integer.parseInt(cmdLine.getOptionValue("tabs"));
+@@ -74,6 +110,14 @@ public class ConversionOptions {
+ //			processingOptions.setCharacterEncoding(encoding);
+ //		}
+ //		
++//		if (cmdLine.hasOption("svg")){
++//			renderingOptions.setImageType(RenderingOptions.ImageType.SVG);
++//		}
++//
++//		if (cmdLine.hasOption("svg-font-url")){
++//			renderingOptions.setFontURL(cmdLine.getOptionValue("svg-font-url"));
++//		}
++//
+ //		ConfigurationParser configParser = new ConfigurationParser();
+ //		try {
+ //			for (Option curOption : cmdLine.getOptions()) {
+@@ -150,4 +194,4 @@ public class ConversionOptions {
+ //		processingOptions.setColorCodesProcessingMode(ProcessingOptions.RENDER_COLOR_CODES);
+ //		processingOptions.setTagProcessingMode(ProcessingOptions.RENDER_TAGS);
+ //	}
+-//}
+\ No newline at end of file
++//}
+diff --git a/src/org/stathissideris/ascii2image/core/DebugUtils.java b/src/org/stathissideris/ascii2image/core/DebugUtils.java
+index f0e4376..62c9276 100644
+--- a/src/org/stathissideris/ascii2image/core/DebugUtils.java
++++ b/src/org/stathissideris/ascii2image/core/DebugUtils.java
+@@ -1,3 +1,22 @@
++/**
++ * ditaa - Diagrams Through Ascii Art
++ * 
++ * Copyright (C) 2004-2011 Efstathios Sideris
++ *
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
++ *
++ * ditaa is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
++ *   
++ */
+ package org.stathissideris.ascii2image.core;
+ 
+ public class DebugUtils {
+diff --git a/src/org/stathissideris/ascii2image/core/DocBookConverter.java b/src/org/stathissideris/ascii2image/core/DocBookConverter.java
+deleted file mode 100644
+index dfbf796..0000000
+--- a/src/org/stathissideris/ascii2image/core/DocBookConverter.java
++++ /dev/null
+@@ -1,70 +0,0 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
+- * 
+- * Copyright (C) 2004 Efstathios Sideris
+- *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
+- *
+- * This program is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
+- *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+- *   
+- */
+-package org.stathissideris.ascii2image.core;
+-
+-import org.xml.sax.Attributes;
+-import org.xml.sax.SAXException;
+-import org.xml.sax.XMLReader;
+-import org.xml.sax.helpers.DefaultHandler;
+-import org.xml.sax.helpers.XMLReaderFactory;
+-
+-// using SAX
+-public class DocBookConverter {
+-
+-	class HowToHandler extends DefaultHandler {
+-    	boolean title = false;
+-    	boolean url   = false;
+-
+-    	public void startElement(
+-    		String nsURI,
+-    		String strippedName,
+-			String tagName,
+-			Attributes attributes)
+-       			throws SAXException {
+-     		if (tagName.equalsIgnoreCase("title"))
+-        	title = true;
+-     		if (tagName.equalsIgnoreCase("url"))
+-        		url = true;
+-    		}
+-
+-    	public void characters(char[] ch, int start, int length) {
+-     		if (title) {
+-       			System.out.println("Title: " + new String(ch, start, length));
+-       			title = false;
+-       		} else if (url) {
+-       			System.out.println("Url: " + new String(ch, start,length));
+-       			url = false;
+-			}
+-		}
+-    }
+-
+-    public void list( ) throws Exception {
+-		XMLReader parser =
+-			XMLReaderFactory.createXMLReader
+-            	("org.apache.crimson.parser.XMLReaderImpl");
+-		parser.setContentHandler(new HowToHandler( ));
+-		parser.parse("howto.xml");
+-	}
+-
+-	public static void main(String[] args) throws Exception {
+-		new DocBookConverter().list( );
+-	}
+-}
+diff --git a/src/org/stathissideris/ascii2image/core/FileUtils.java b/src/org/stathissideris/ascii2image/core/FileUtils.java
+index 9763453..4570a53 100644
+--- a/src/org/stathissideris/ascii2image/core/FileUtils.java
++++ b/src/org/stathissideris/ascii2image/core/FileUtils.java
+@@ -1,29 +1,31 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.core;
+ 
+ import java.io.File;
+ import java.io.FileInputStream;
++import java.io.FileNotFoundException;
+ import java.io.IOException;
+ import java.io.InputStream;
++import java.io.InputStreamReader;
++import java.io.LineNumberReader;
+ 
+ /**
+  * 
+@@ -81,37 +83,58 @@ public class FileUtils {
+ 	}
+ 	
+ 	public static String readFile(File file, String encoding) throws IOException {
+-		InputStream is = new FileInputStream(file);
+         long length = file.length();
+         
+         if (length > Integer.MAX_VALUE) {
+             // File is too large
+         	// TODO: we need some feedback for the case of the file being too large
+         }
++
++		return readFile(new FileInputStream(file), file.getName(), encoding, length);
++	}
++
++	public static String readFile(InputStream is, String name, String encoding) throws IOException {
++		return readFile(is, name, encoding, -1);
++	}
++
++	public static String readFile(InputStream is, String name, String encoding, long length) throws IOException {
++
++		if (length < 0) {
++			LineNumberReader reader = new LineNumberReader(new InputStreamReader(is));
++			StringBuilder builder = new StringBuilder();
++			while (true) {
++				String line = reader.readLine();
++				if (line == null) break;
++				else builder.append(line).append("\n");
++			}
++			return builder.toString();
++		}
++
++		else {
++			// Create the byte array to hold the data
++			byte[] bytes = new byte[(int)length];
+     
+-        // Create the byte array to hold the data
+-        byte[] bytes = new byte[(int)length];
+-    
+-        // Read in the bytes
+-        int offset = 0;
+-        int numRead = 0;
+-        while (offset < bytes.length
+-               && (numRead=is.read(bytes, offset, bytes.length-offset)) >= 0) {
+-            offset += numRead;
+-        }
++			// Read in the bytes
++			int offset = 0;
++			int numRead = 0;
++			while (offset < bytes.length
++				   && (numRead=is.read(bytes, offset, bytes.length-offset)) >= 0) {
++				offset += numRead;
++			}
+     
+-        // Ensure all the bytes have been read in
+-        if (offset < bytes.length) {
+-            throw new IOException("Could not completely read file "+file.getName());
+-        }
++			// Ensure all the bytes have been read in
++			if (offset < bytes.length) {
++				throw new IOException("Could not completely read file "+name);
++			}
+     
+-        // Close the input stream and return bytes
+-        is.close();
+-        if(encoding == null){
++			// Close the input stream and return bytes
++			is.close();
++			if(encoding == null){
+         		return new String(bytes);
+-        } else {
++			} else {
+         		return new String(bytes, encoding);
+-        }
++			}
++		}
+ 	}
+ 		
+ 	public static void main(String[] args){
+diff --git a/src/org/stathissideris/ascii2image/core/Pair.java b/src/org/stathissideris/ascii2image/core/Pair.java
+index 3d58163..0468633 100644
+--- a/src/org/stathissideris/ascii2image/core/Pair.java
++++ b/src/org/stathissideris/ascii2image/core/Pair.java
+@@ -1,3 +1,22 @@
++/**
++ * ditaa - Diagrams Through Ascii Art
++ * 
++ * Copyright (C) 2004-2011 Efstathios Sideris
++ *
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
++ *
++ * ditaa is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
++ *   
++ */
+ package org.stathissideris.ascii2image.core;
+ 
+ public class Pair<T,K> {
+diff --git a/src/org/stathissideris/ascii2image/core/PerformanceTester.java b/src/org/stathissideris/ascii2image/core/PerformanceTester.java
+new file mode 100644
+index 0000000..fbeb8ad
+--- /dev/null
++++ b/src/org/stathissideris/ascii2image/core/PerformanceTester.java
+@@ -0,0 +1,64 @@
++/**
++ * ditaa - Diagrams Through Ascii Art
++ * 
++ * Copyright (C) 2004-2011 Efstathios Sideris
++ *
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
++ *
++ * ditaa is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
++ *   
++ */
++package org.stathissideris.ascii2image.core;
++
++import java.io.FileNotFoundException;
++import java.io.IOException;
++
++import org.stathissideris.ascii2image.graphics.Diagram;
++import org.stathissideris.ascii2image.text.TextGrid;
++
++/**
++ * 
++ * @author Efstathios Sideris
++ */
++public class PerformanceTester {
++
++	public static void main(String[] args){
++		
++		String inputFilename = "tests/text/ditaa_bug.txt";
++		ConversionOptions options = new ConversionOptions();
++
++		int iterations = 30;
++		
++		try {
++			long a = java.lang.System.currentTimeMillis();
++			
++			for(int i = 0; i < iterations; i++) {
++				System.out.println("iteration "+i);
++				
++				TextGrid grid = new TextGrid();
++				grid.loadFrom(inputFilename);
++				new Diagram(grid, options);
++			}
++			
++			long b = java.lang.System.currentTimeMillis();
++			
++			System.out.println((b-a) + "msec for " + iterations + " iterations on "+inputFilename);
++			
++		} catch (FileNotFoundException e) {
++			e.printStackTrace();
++		} catch (IOException e) {
++			e.printStackTrace();
++		}
++		
++		System.out.println("Tests completed");
++	}
++}
+diff --git a/src/org/stathissideris/ascii2image/core/ProcessingOptions.java b/src/org/stathissideris/ascii2image/core/ProcessingOptions.java
+index c0f4219..1833e9f 100644
+--- a/src/org/stathissideris/ascii2image/core/ProcessingOptions.java
++++ b/src/org/stathissideris/ascii2image/core/ProcessingOptions.java
+@@ -1,21 +1,20 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.core;
+@@ -37,7 +36,7 @@ public class ProcessingOptions {
+ 	private boolean overwriteFiles = false;
+ 	private boolean performSeparationOfCommonEdges = true;
+ 	private boolean allCornersAreRound = false;
+-	
++
+ 	public static final int USE_TAGS = 0;
+ 	public static final int RENDER_TAGS = 1;
+ 	public static final int IGNORE_TAGS = 2;
+@@ -89,7 +88,7 @@ public class ProcessingOptions {
+ 		return performSeparationOfCommonEdges;
+ 	}
+ 
+-	/**
++    /**
+ 	 * @return
+ 	 */
+ 	public int getTagProcessingMode() {
+@@ -124,7 +123,7 @@ public class ProcessingOptions {
+ 		performSeparationOfCommonEdges = b;
+ 	}
+ 
+-	/**
++    /**
+ 	 * @param i
+ 	 */
+ 	public void setTagProcessingMode(int i) {
+diff --git a/src/org/stathissideris/ascii2image/core/RenderingOptions.java b/src/org/stathissideris/ascii2image/core/RenderingOptions.java
+index 8515143..02af946 100644
+--- a/src/org/stathissideris/ascii2image/core/RenderingOptions.java
++++ b/src/org/stathissideris/ascii2image/core/RenderingOptions.java
+@@ -1,25 +1,25 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.core;
+ 
++import java.awt.Color;
+ import java.util.HashMap;
+ 
+ import org.stathissideris.ascii2image.graphics.CustomShapeDefinition;
+@@ -35,82 +35,98 @@ public class RenderingOptions {
+ 	private boolean dropShadows = true;
+ 	private boolean renderDebugLines = false;
+ 	private boolean antialias = true;
++    private boolean fixedSlope = false;
+ 
+ 	private int cellWidth = 10;
+ 	private int cellHeight = 14;
+ 	
+ 	private float scale = 1;
++	
++	private Color backgroundColor = Color.white;
++
++	public enum ImageType { PNG, SVG };
++
++	private ImageType imageType = ImageType.PNG;
++
++	public ImageType getImageType() { return imageType; }
++	public void setImageType(ImageType type) { imageType = type; }
++
++	private String fontFamily = "Courier";
++	private String fontURL = null;
++
++	public String getFontFamily() { return fontFamily; }
++	public String getFontURL() { return fontURL; }
++	public void setFontURL(String url) { fontFamily = "Custom"; fontURL = url; }
+ 
+-	/**
+-	 * @return
+-	 */
+ 	public int getCellHeight() {
+ 		return cellHeight;
+ 	}
+ 
+-	/**
+-	 * @return
+-	 */
+ 	public int getCellWidth() {
+ 		return cellWidth;
+ 	}
+ 
+-	/**
+-	 * @return
+-	 */
+ 	public boolean dropShadows() {
+ 		return dropShadows;
+ 	}
+ 
+-	/**
+-	 * @return
+-	 */
+ 	public boolean renderDebugLines() {
+ 		return renderDebugLines;
+ 	}
+ 
+-	/**
+-	 * @return
+-	 */
+ 	public float getScale() {
+ 		return scale;
+ 	}
+ 
+-	/**
+-	 * @param b
+-	 */
+ 	public void setDropShadows(boolean b) {
+ 		dropShadows = b;
+ 	}
+ 
+-	/**
+-	 * @param b
+-	 */
+ 	public void setRenderDebugLines(boolean b) {
+ 		renderDebugLines = b;
+ 	}
+ 
+-	/**
+-	 * @param f
+-	 */
+ 	public void setScale(float f) {
+ 		scale = f;
+ 		cellWidth *= scale;
+ 		cellHeight *= scale;
+ 	}
+ 
+-	/**
+-	 * @return
+-	 */
+ 	public boolean performAntialias() {
+ 		return antialias;
+ 	}
+ 
+-	/**
+-	 * @param b
+-	 */
+ 	public void setAntialias(boolean b) {
+ 		antialias = b;
+ 	}
+ 
++	public Color getBackgroundColor() {
++		return backgroundColor;
++	}
++
++	public void setBackgroundColor(Color backgroundColor) {
++		this.backgroundColor = backgroundColor;
++	}
++	
++	public boolean needsTransparency() {
++		return backgroundColor.getAlpha() < 255;
++	}
++
++	/**
++     * Should the sides of trapezoids and parallelograms have fixed width (false, default)
++     * or fixed slope (true)?
++     * @return true for fixed slope, false for fixed width
++     */
++    public boolean isFixedSlope() {
++        return fixedSlope;
++    }
++
++    /**
++     * Should the sides of trapezoids and parallelograms have fixed width (false, default)
++     * or fixed slope (true)?
++     * @param b true for fixed slope, false for fixed width
++     */
++    public void setFixedSlope(boolean b) {
++        this.fixedSlope = b;
++    }
+ }
+diff --git a/src/org/stathissideris/ascii2image/core/Shape3DOrderingComparator.java b/src/org/stathissideris/ascii2image/core/Shape3DOrderingComparator.java
+index 937ea07..f78e9c2 100644
+--- a/src/org/stathissideris/ascii2image/core/Shape3DOrderingComparator.java
++++ b/src/org/stathissideris/ascii2image/core/Shape3DOrderingComparator.java
+@@ -1,21 +1,20 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.core;
+@@ -28,20 +27,13 @@ import org.stathissideris.ascii2image.graphics.DiagramShape;
+  * 
+  * @author Efstathios Sideris
+  */
+-public class Shape3DOrderingComparator implements Comparator {
++public class Shape3DOrderingComparator implements Comparator<DiagramShape> {
+ 
+ 	/**
+ 	 * Puts diagram shapes in pseudo-3d order starting from back to front
+ 	 * 
+ 	 */
+-	public int compare(Object object1, Object object2) {
+-		if(!(object1 instanceof DiagramShape)
+-				|| !(object2 instanceof DiagramShape))
+-			throw new RuntimeException("This comparator can only compare DiagramShapeS");
+-		
+-		DiagramShape shape1 = (DiagramShape) object1;
+-		DiagramShape shape2 = (DiagramShape) object2;
+-		
++	public int compare(DiagramShape shape1, DiagramShape shape2) {		
+ 		double y1 = shape1.makeIntoPath().getBounds().getCenterY();
+ 		double y2 = shape2.makeIntoPath().getBounds().getCenterY();
+ 		
+diff --git a/src/org/stathissideris/ascii2image/core/ShapeAreaComparator.java b/src/org/stathissideris/ascii2image/core/ShapeAreaComparator.java
+new file mode 100644
+index 0000000..162ca59
+--- /dev/null
++++ b/src/org/stathissideris/ascii2image/core/ShapeAreaComparator.java
+@@ -0,0 +1,46 @@
++/**
++ * ditaa - Diagrams Through Ascii Art
++ * 
++ * Copyright (C) 2004-2011 Efstathios Sideris
++ *
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
++ *
++ * ditaa is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
++ *   
++ */
++package org.stathissideris.ascii2image.core;
++
++import java.util.Comparator;
++
++import org.stathissideris.ascii2image.graphics.DiagramShape;
++
++/**
++ * 
++ * @author Efstathios Sideris
++ */
++public class ShapeAreaComparator implements Comparator<DiagramShape> {
++
++	/**
++	 * Puts diagram shapes in order or area starting from largest to smallest
++	 * 
++	 */
++	public int compare(DiagramShape shape1, DiagramShape shape2) {
++		double y1 = shape1.calculateArea();
++		double y2 = shape2.calculateArea();
++		
++		if(y1 > y2) return -1;
++		if(y1 < y2) return 1;
++		
++		return 0;
++	}
++
++}
+diff --git a/src/org/stathissideris/ascii2image/graphics/BitmapRenderer.java b/src/org/stathissideris/ascii2image/graphics/BitmapRenderer.java
+index 5ac634a..40d1bd3 100644
+--- a/src/org/stathissideris/ascii2image/graphics/BitmapRenderer.java
++++ b/src/org/stathissideris/ascii2image/graphics/BitmapRenderer.java
+@@ -1,21 +1,20 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.graphics;
+@@ -43,8 +42,11 @@ import java.util.Iterator;
+ 
+ import javax.imageio.ImageIO;
+ 
++import org.stathissideris.ascii2image.core.ConversionOptions;
+ import org.stathissideris.ascii2image.core.RenderingOptions;
+ import org.stathissideris.ascii2image.core.Shape3DOrderingComparator;
++import org.stathissideris.ascii2image.core.ShapeAreaComparator;
++import org.stathissideris.ascii2image.text.TextGrid;
+ 
+ /**
+  * 
+@@ -53,34 +55,35 @@ import org.stathissideris.ascii2image.core.Shape3DOrderingComparator;
+ public class BitmapRenderer {
+ 
+ 	private static final boolean DEBUG = false;
++	private static final boolean DEBUG_LINES = false;
+ 
+ 	private static final String IDREGEX = "^.+_vfill$";
+ 	
+ 	Stroke normalStroke;
+ 	Stroke dashStroke; 
+ 	
+-//	public static void main(String[] args) throws Exception {
+-//		
+-//		
+-//		long startTime = System.currentTimeMillis();
+-//		
+-//		ConversionOptions options = new ConversionOptions();
+-//		
+-//		TextGrid grid = new TextGrid();
+-//		
+-//		String filename = "dak_orgstruktur_vs_be.ditaa.OutOfMemoryError.edit.txt";
+-//		
+-//		grid.loadFrom("tests/text/"+filename);
+-//		
+-//		Diagram diagram = new Diagram(grid, options);
+-//		new BitmapRenderer().renderToPNG(diagram, "tests/images/"+filename+".png", options.renderingOptions);
+-//		long endTime = System.currentTimeMillis();
+-//		long totalTime  = (endTime - startTime) / 1000;
+-//		System.out.println("Done in "+totalTime+"sec");
+-//		
+-//		File workDir = new File("tests/images");
+-//		//Process p = Runtime.getRuntime().exec("display "+filename+".png", null, workDir);
+-//	}
++	public static void main(String[] args) throws Exception {
++		
++		
++		long startTime = System.currentTimeMillis();
++		
++		ConversionOptions options = new ConversionOptions();
++		
++		TextGrid grid = new TextGrid();
++		
++		String filename = "bug18.txt";
++		
++		grid.loadFrom("tests/text/"+filename);
++		
++		Diagram diagram = new Diagram(grid, options);
++		new BitmapRenderer().renderToPNG(diagram, "tests/images/"+filename+".png", options.renderingOptions);
++		long endTime = System.currentTimeMillis();
++		long totalTime  = (endTime - startTime) / 1000;
++		System.out.println("Done in "+totalTime+"sec");
++		
++		File workDir = new File("tests/images");
++		//Process p = Runtime.getRuntime().exec("display "+filename+".png", null, workDir);
++	}
+ 
+ 	private boolean renderToPNG(Diagram diagram, String filename, RenderingOptions options){	
+ 		RenderedImage image = renderToImage(diagram, options);
+@@ -96,11 +99,19 @@ public class BitmapRenderer {
+ 		return true;
+ 	}
+ 	
+-	public RenderedImage renderToImage(Diagram diagram,  RenderingOptions options){
+-		BufferedImage image = new BufferedImage(
++	public RenderedImage renderToImage(Diagram diagram, RenderingOptions options){
++		BufferedImage image;
++		if(options.needsTransparency()) {
++			image = new BufferedImage(
++					diagram.getWidth(),
++					diagram.getHeight(),
++					BufferedImage.TYPE_INT_ARGB);
++		} else {
++			image = new BufferedImage(
+ 					diagram.getWidth(),
+ 					diagram.getHeight(),
+ 					BufferedImage.TYPE_INT_RGB);
++		}
+ 		
+ 		return render(diagram, image, options);
+ 	}
+@@ -115,7 +126,7 @@ public class BitmapRenderer {
+ 		
+ 		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, antialiasSetting);
+ 
+-		g2.setColor(Color.white);
++		g2.setColor(options.getBackgroundColor());
+ 		//TODO: find out why the next line does not work
+ 		g2.fillRect(0, 0, image.getWidth()+10, image.getHeight()+10);
+ 		/*for(int y = 0; y < diagram.getHeight(); y ++)
+@@ -123,22 +134,22 @@ public class BitmapRenderer {
+ 		
+ 		g2.setStroke(new BasicStroke(1, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_ROUND));
+ 
+-		ArrayList shapes = diagram.getAllDiagramShapes();
++		ArrayList<DiagramShape> shapes = diagram.getAllDiagramShapes();
+ 
+ 		if(DEBUG) System.out.println("Rendering "+shapes.size()+" shapes (groups flattened)");
+ 
+-		Iterator shapesIt;
++		Iterator<DiagramShape> shapesIt;
+ 		if(options.dropShadows()){
+ 			//render shadows
+ 			shapesIt = shapes.iterator();
+ 			while(shapesIt.hasNext()){
+-				DiagramShape shape = (DiagramShape) shapesIt.next();
++				DiagramShape shape = shapesIt.next();
+ 
+ 				if(shape.getPoints().isEmpty()) continue;
+ 
+ 				//GeneralPath path = shape.makeIntoPath();
+ 				GeneralPath path;
+-				path = shape.makeIntoRenderPath(diagram);			
++				path = shape.makeIntoRenderPath(diagram, options);			
+ 							
+ 				float offset = diagram.getMinimumOfCellDimension() / 3.333f;
+ 			
+@@ -217,7 +228,7 @@ public class BitmapRenderer {
+ 		
+ 		
+ 		//find storage shapes
+-		ArrayList storageShapes = new ArrayList();
++		ArrayList<DiagramShape> storageShapes = new ArrayList<DiagramShape>();
+ 		shapesIt = shapes.iterator();
+ 		while(shapesIt.hasNext()){
+ 			DiagramShape shape = (DiagramShape) shapesIt.next();
+@@ -242,7 +253,7 @@ public class BitmapRenderer {
+ 			DiagramShape shape = (DiagramShape) shapesIt.next();
+ 
+ 			GeneralPath path;
+-			path = shape.makeIntoRenderPath(diagram);
++			path = shape.makeIntoRenderPath(diagram, options);
+ 			
+ 			if(!shape.isStrokeDashed()) {
+ 				if(shape.getFillColor() != null)
+@@ -260,9 +271,11 @@ public class BitmapRenderer {
+ 			g2.draw(path);
+ 		}
+ 
+-
++		//sort so that the largest shapes are rendered first
++		Collections.sort(shapes, new ShapeAreaComparator());
++		
+ 		//render the rest of the shapes
+-		ArrayList pointMarkers = new ArrayList();
++		ArrayList<DiagramShape> pointMarkers = new ArrayList<DiagramShape>();
+ 		shapesIt = shapes.iterator();
+ 		while(shapesIt.hasNext()){
+ 			DiagramShape shape = (DiagramShape) shapesIt.next();
+@@ -283,7 +296,7 @@ public class BitmapRenderer {
+ 			int size = shape.getPoints().size();
+ 			
+ 			GeneralPath path;
+-			path = shape.makeIntoRenderPath(diagram);
++			path = shape.makeIntoRenderPath(diagram, options);
+ 			
+ 			//fill
+ 			if(path != null && shape.isClosed() && !shape.isStrokeDashed()){
+@@ -314,7 +327,7 @@ public class BitmapRenderer {
+ 			//if(shape.getType() != DiagramShape.TYPE_POINT_MARKER) continue;
+ 
+ 			GeneralPath path;
+-			path = shape.makeIntoRenderPath(diagram);
++			path = shape.makeIntoRenderPath(diagram, options);
+ 			
+ 			g2.setColor(Color.white);
+ 			g2.fill(path);
+@@ -326,9 +339,9 @@ public class BitmapRenderer {
+ 		//g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+ 		//renderTextLayer(diagram.getTextObjects().iterator());
+ 		
+-		Iterator textIt = diagram.getTextObjects().iterator();
++		Iterator<DiagramText> textIt = diagram.getTextObjects().iterator();
+ 		while(textIt.hasNext()){
+-			DiagramText text = (DiagramText) textIt.next();
++			DiagramText text = textIt.next();
+ 			g2.setFont(text.getFont());
+ 			if(text.hasOutline()){
+ 				g2.setColor(text.getOutlineColor());
+@@ -341,7 +354,7 @@ public class BitmapRenderer {
+ 			g2.drawString(text.getText(), text.getXPos(), text.getYPos());
+ 		}
+ 		
+-		if(options.renderDebugLines() || DEBUG){
++		if(options.renderDebugLines() || DEBUG_LINES){
+ 			Stroke debugStroke =
+ 			  new BasicStroke(
+ 				1,
+@@ -363,7 +376,7 @@ public class BitmapRenderer {
+ 		return renderedImage;
+ 	}
+ 	
+-	private RenderedImage renderTextLayer(ArrayList textObjects, int width, int height){
++	private RenderedImage renderTextLayer(ArrayList<DiagramText> textObjects, int width, int height){
+ 		TextCanvas canvas = new TextCanvas(textObjects);
+ 		Image image = canvas.createImage(width, height);
+ 		Graphics g = image.getGraphics();
+@@ -372,15 +385,15 @@ public class BitmapRenderer {
+ 	}
+ 	
+ 	private class TextCanvas extends Canvas {
+-		ArrayList textObjects;
++		ArrayList<DiagramText> textObjects;
+ 		
+-		public TextCanvas(ArrayList textObjects){
++		public TextCanvas(ArrayList<DiagramText> textObjects){
+ 			this.textObjects = textObjects;
+ 		}
+ 		
+ 		public void paint(Graphics g){
+ 			Graphics g2 = (Graphics2D) g;
+-			Iterator textIt = textObjects.iterator();
++			Iterator<DiagramText> textIt = textObjects.iterator();
+ 			while(textIt.hasNext()){
+ 				DiagramText text = (DiagramText) textIt.next();
+ 				g2.setFont(text.getFont());
+@@ -416,32 +429,31 @@ public class BitmapRenderer {
+ //			g2.drawRect(bounds.x, bounds.y, bounds.width, bounds.height); //looks different!			
+ 		}
+ 		
+-		//TODO: custom shape distintion relies on filename extension. Make this more intelligent
++		//TODO: custom shape distinction relies on filename extension. Make this more intelligent
+ 		if(definition.getFilename().endsWith(".png")){
+ 			renderCustomPNGShape(shape, g2);
+ 		} else if(definition.getFilename().endsWith(".svg")){
+-			// renderCustomSVGShape(shape, g2);
+-			throw new UnsupportedOperationException();
++			renderCustomSVGShape(shape, g2);
+ 		}
+ 	}
+ 	
+-//	private void renderCustomSVGShape(DiagramShape shape, Graphics2D g2){
+-//		CustomShapeDefinition definition = shape.getDefinition();
+-//		Rectangle bounds = shape.getBounds();
+-//		Image graphic;
+-//		try {
+-//			if(shape.getFillColor() == null) {
+-//				graphic = ImageHandler.instance().renderSVG(
+-//						definition.getFilename(), bounds.width, bounds.height, definition.stretches());
+-//			} else {
+-//				graphic = ImageHandler.instance().renderSVG(
+-//						definition.getFilename(), bounds.width, bounds.height, definition.stretches(), IDREGEX, shape.getFillColor());				
+-//			}
+-//			g2.drawImage(graphic, bounds.x, bounds.y, null);
+-//		} catch (IOException e) {
+-//			e.printStackTrace();
+-//		}
+-//	}
++	private void renderCustomSVGShape(DiagramShape shape, Graphics2D g2){
++		CustomShapeDefinition definition = shape.getDefinition();
++		Rectangle bounds = shape.getBounds();
++		Image graphic;
++		try {
++			if(shape.getFillColor() == null) {
++				graphic = ImageHandler.instance().renderSVG(
++						definition.getFilename(), bounds.width, bounds.height, definition.stretches());
++			} else {
++				graphic = ImageHandler.instance().renderSVG(
++						definition.getFilename(), bounds.width, bounds.height, definition.stretches(), IDREGEX, shape.getFillColor());				
++			}
++			g2.drawImage(graphic, bounds.x, bounds.y, null);
++		} catch (IOException e) {
++			e.printStackTrace();
++		}
++	}
+ 	
+ 	private void renderCustomPNGShape(DiagramShape shape, Graphics2D g2){
+ 		CustomShapeDefinition definition = shape.getDefinition();
+diff --git a/src/org/stathissideris/ascii2image/graphics/CompositeDiagramShape.java b/src/org/stathissideris/ascii2image/graphics/CompositeDiagramShape.java
+index 108f01e..0677966 100644
+--- a/src/org/stathissideris/ascii2image/graphics/CompositeDiagramShape.java
++++ b/src/org/stathissideris/ascii2image/graphics/CompositeDiagramShape.java
+@@ -1,32 +1,31 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.graphics;
+ 
+ import java.util.ArrayList;
+-import java.util.Iterator;
+ import java.util.List;
++import java.util.Iterator;
++
+ 
+ import org.stathissideris.ascii2image.core.DebugUtils;
+-import org.stathissideris.ascii2image.text.CellSet;
+-import org.stathissideris.ascii2image.text.TextGrid;
++import org.stathissideris.ascii2image.text.*;
+ 
+ /**
+  * 
+@@ -140,9 +139,9 @@ public class CompositeDiagramShape extends DiagramComponent {
+ 			if(nextCells.size() == 1) {
+ 				previousCell = cell;
+ 				cell = (TextGrid.Cell) nextCells.getFirst();
+-			} else if(nextCells.size() > 1) {//3- or 4- way intersection
++				if(DEBUG) System.out.println("tracing at "+cell+" (call from line: "+DebugUtils.getLineNumber()+")");
++			} else if(nextCells.size() > 1 || nextCells.size() == 0) {//3- or 4- way intersection
+ 				finished = true;
+-				if(DEBUG) System.out.println("finished shape");
+ 				for(TextGrid.Cell nextCell : nextCells)
+ 					result.addAll(growEdgesFromCell(workGrid, cellWidth, cellHeight, allRound, nextCell, cell, visitedCells));
+ 			}
+@@ -305,7 +304,7 @@ public class CompositeDiagramShape extends DiagramComponent {
+ 	/**
+ 	 * @return
+ 	 */
+-	public ArrayList getShapes() {
++	public ArrayList<DiagramShape> getShapes() {
+ 		return shapes;
+ 	}
+ 
+diff --git a/src/org/stathissideris/ascii2image/graphics/CustomShapeDefinition.java b/src/org/stathissideris/ascii2image/graphics/CustomShapeDefinition.java
+index c3bce8a..db513d9 100644
+--- a/src/org/stathissideris/ascii2image/graphics/CustomShapeDefinition.java
++++ b/src/org/stathissideris/ascii2image/graphics/CustomShapeDefinition.java
+@@ -1,21 +1,20 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.graphics;
+diff --git a/src/org/stathissideris/ascii2image/graphics/Diagram.java b/src/org/stathissideris/ascii2image/graphics/Diagram.java
+index c41af73..ef3d66b 100644
+--- a/src/org/stathissideris/ascii2image/graphics/Diagram.java
++++ b/src/org/stathissideris/ascii2image/graphics/Diagram.java
+@@ -1,36 +1,39 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.graphics;
+ 
+ import java.awt.Color;
+ import java.awt.Font;
++import java.awt.geom.Rectangle2D;
+ import java.util.ArrayList;
+ import java.util.Iterator;
+ 
+ import org.stathissideris.ascii2image.core.ConversionOptions;
+ import org.stathissideris.ascii2image.core.Pair;
+-import org.stathissideris.ascii2image.core.ProcessingOptions;
+ import org.stathissideris.ascii2image.text.AbstractionGrid;
+ import org.stathissideris.ascii2image.text.CellSet;
+ import org.stathissideris.ascii2image.text.TextGrid;
++import org.stathissideris.ascii2image.text.TextGrid.Cell;
++import org.stathissideris.ascii2image.text.TextGrid.CellColorPair;
++import org.stathissideris.ascii2image.text.TextGrid.CellStringPair;
++import org.stathissideris.ascii2image.text.TextGrid.CellTagPair;
+ 
+ /**
+  * 
+@@ -39,11 +42,12 @@ import org.stathissideris.ascii2image.text.TextGrid;
+ public class Diagram {
+ 
+ 	private static final boolean DEBUG = false;
+-	private static final boolean VERBOSE_DEBUG = false;
++	private static final boolean DEBUG_VERBOSE = false;
++	private static final boolean DEBUG_MAKE_SHAPES = false;
+ 
+-	private ArrayList shapes = new ArrayList();
+-	private ArrayList compositeShapes = new ArrayList();
+-	private ArrayList textObjects = new ArrayList();
++	private ArrayList<DiagramShape> shapes = new ArrayList<DiagramShape>();
++	private ArrayList<CompositeDiagramShape> compositeShapes = new ArrayList<CompositeDiagramShape>();
++	private ArrayList<DiagramText> textObjects = new ArrayList<DiagramText>();
+ 	
+ 	private int width, height;
+ 	private int cellWidth, cellHeight;
+@@ -67,7 +71,7 @@ public class Diagram {
+ 	 *   <li>Remove obsolete boundaries. Obsolete boundaries are the ones that are
+ 	 *       the sum of their parts when plotted as filled shapes. (see method
+ 	 *       removeObsoleteShapes())</li>
+-	 *   <li>Seperate the found boundary sets to open, closed or mixed
++	 *   <li>Separate the found boundary sets to open, closed or mixed
+ 	 *       (See CellSet class on how its done).</li>
+ 	 *   <li>Are there any closed boundaries?
+ 	 *        <ul>
+@@ -81,7 +85,7 @@ public class Diagram {
+ 	 *           an intersection.</li>
+ 	 *        </ul>
+ 	 *   </li>
+-	 *   <li>If we had to eliminate any mixed shapes, we seperate the found
++	 *   <li>If we had to eliminate any mixed shapes, we separate the found
+ 	 *   boundary sets again to open, closed or mixed.</li>
+ 	 * </ol>
+ 	 * 
+@@ -95,7 +99,7 @@ public class Diagram {
+ 	 *   see methods connectEndsToAnchors() and moveEndsToCellEdges() of
+ 	 *   DiagramShape.</li>
+ 	 *   <li>Assign color codes to closed shapes.</li>
+-	 *   <li>Assing extended markup tags to closed shapes.</p>
++	 *   <li>Assign extended markup tags to closed shapes.</p>
+ 	 *   <li>Create arrowheads.</p>
+ 	 *   <li>Create point markers.</p>
+ 	 * </ol>
+@@ -106,7 +110,7 @@ public class Diagram {
+ 	 * @param cellWidth
+ 	 * @param cellHeight
+ 	 */
+-	public Diagram(TextGrid grid, ConversionOptions options, ProcessingOptions processingOptions) {
++	public Diagram(TextGrid grid, ConversionOptions options) {
+ 		
+ 		this.cellWidth = options.renderingOptions.getCellWidth();
+ 		this.cellHeight = options.renderingOptions.getCellHeight();
+@@ -125,13 +129,13 @@ public class Diagram {
+ 	
+ 		//split distinct shapes using AbstractionGrid 
+ 		AbstractionGrid temp = new AbstractionGrid(workGrid, workGrid.getAllBoundaries());
+-		ArrayList boundarySetsStep1 = temp.getDistinctShapes();
++		ArrayList<CellSet> boundarySetsStep1 = temp.getDistinctShapes();
+ 		
+ 		if(DEBUG){
+ 			System.out.println("******* Distinct shapes found using AbstractionGrid *******");
+-			Iterator dit = boundarySetsStep1.iterator();
++			Iterator<CellSet> dit = boundarySetsStep1.iterator();
+ 			while (dit.hasNext()) {
+-				CellSet set = (CellSet) dit.next();
++				CellSet set = dit.next();
+ 				set.printAsGrid();
+ 			}
+ 			System.out.println("******* Same set of shapes after processing them by filling *******");
+@@ -140,11 +144,8 @@ public class Diagram {
+ 		
+ 		//Find all the boundaries by using the special version of the filling method
+ 		//(fills in a different buffer than the buffer it reads from)
+-		ArrayList boundarySetsStep2 = new ArrayList();
+-		Iterator boundarySetIt = boundarySetsStep1.iterator();
+-		while (boundarySetIt.hasNext()) {
+-			CellSet set = (CellSet) boundarySetIt.next();
+-			
++		ArrayList<CellSet> boundarySetsStep2 = new ArrayList<CellSet>();
++		for(CellSet set : boundarySetsStep1) {			
+ 			//the fill buffer keeps track of which cells have been
+ 			//filled already
+ 			TextGrid fillBuffer = new TextGrid(width * 3, height * 3);
+@@ -186,9 +187,9 @@ public class Diagram {
+ 		boundarySetsStep2 = CellSet.removeDuplicateSets(boundarySetsStep2);
+ 
+ 		if(DEBUG){
+-			Iterator dit = boundarySetsStep2.iterator();
++			Iterator<CellSet> dit = boundarySetsStep2.iterator();
+ 			while (dit.hasNext()) {
+-				CellSet set = (CellSet) dit.next();
++				CellSet set = dit.next();
+ 				set.printAsGrid();
+ 			}
+ 		}
+@@ -209,11 +210,11 @@ public class Diagram {
+ 		if (DEBUG)
+ 			System.out.println("******* First evaluation of openess *******");
+ 		
+-		ArrayList open = new ArrayList();
+-		ArrayList closed = new ArrayList();
+-		ArrayList mixed = new ArrayList();
++		ArrayList<CellSet> open = new ArrayList<CellSet>();
++		ArrayList<CellSet> closed = new ArrayList<CellSet>();
++		ArrayList<CellSet> mixed = new ArrayList<CellSet>();
+ 		
+-		Iterator sets = boundarySetsStep2.iterator();
++		Iterator<CellSet> sets = boundarySetsStep2.iterator();
+ 		while(sets.hasNext()){
+ 			CellSet set = (CellSet) sets.next();
+ 			int type = set.getType(workGrid);
+@@ -242,9 +243,9 @@ public class Diagram {
+ 			sets = mixed.iterator();
+ 			while(sets.hasNext()){
+ 				CellSet set = (CellSet) sets.next();
+-				Iterator closedSets = closed.iterator();
++				Iterator<CellSet> closedSets = closed.iterator();
+ 				while(closedSets.hasNext()){
+-					CellSet closedSet = (CellSet) closedSets.next();
++					CellSet closedSet = closedSets.next();
+ 					set.subtractSet(closedSet);
+ 				}
+ 				// this is necessary because some mixed sets produce
+@@ -289,9 +290,9 @@ public class Diagram {
+ 				System.out.println("******* Second evaluation of openess *******");
+ 		
+ 			//split boundaries again to open, closed and mixed
+-			open = new ArrayList();
+-			closed = new ArrayList();
+-			mixed = new ArrayList();
++			open = new ArrayList<CellSet>();
++			closed = new ArrayList<CellSet>();
++			mixed = new ArrayList<CellSet>();
+ 		
+ 			sets = boundarySetsStep2.iterator();
+ 			while(sets.hasNext()){
+@@ -312,14 +313,24 @@ public class Diagram {
+ 		boolean removedAnyObsolete = removeObsoleteShapes(workGrid, closed);
+ 		
+ 		boolean allCornersRound = false;
+-		if(processingOptions.areAllCornersRound()) allCornersRound = true;
++		if(options.processingOptions.areAllCornersRound()) allCornersRound = true;
+ 		
+ 		//make shapes from the boundary sets
+ 		//make closed shapes
+-		ArrayList closedShapes = new ArrayList();
++		if(DEBUG_MAKE_SHAPES) {
++			System.out.println("***** MAKING SHAPES FROM BOUNDARY SETS *****");
++			System.out.println("***** CLOSED: *****");
++		}
++		
++		ArrayList<DiagramComponent> closedShapes = new ArrayList<DiagramComponent>();
+ 		sets = closed.iterator();
+ 		while(sets.hasNext()){
+ 			CellSet set = (CellSet) sets.next();
++			
++			if(DEBUG_MAKE_SHAPES) {
++				set.printAsGrid();
++			}
++			
+ 			DiagramComponent shape = DiagramComponent.createClosedFromBoundaryCells(workGrid, set, cellWidth, cellHeight, allCornersRound); 
+ 			if(shape != null){
+ 				if(shape instanceof DiagramShape){
+@@ -330,7 +341,7 @@ public class Diagram {
+ 			}
+ 		}
+ 
+-		if(processingOptions.performSeparationOfCommonEdges())
++		if(options.processingOptions.performSeparationOfCommonEdges())
+ 			separateCommonEdges(closedShapes);
+ 
+ 		//make open shapes
+@@ -347,6 +358,9 @@ public class Diagram {
+ 					}
+ 				}
+ 			} else { //normal shape
++                if (DEBUG)
++                    System.out.println(set.getCellsAsString());				
++				
+ 				DiagramComponent shape =
+ 					CompositeDiagramShape
+ 						.createOpenFromBoundaryCells(
+@@ -368,44 +382,30 @@ public class Diagram {
+ 
+ 		//assign color codes to shapes
+ 		//TODO: text on line should not change its color
+-		//TODO: each color tag should be assigned to the smallest containing shape (like shape tags)
+ 		
+-		Iterator cellColorPairs = grid.findColorCodes().iterator();
++		Iterator<CellColorPair> cellColorPairs = grid.findColorCodes().iterator();
+ 		while(cellColorPairs.hasNext()){
+ 			TextGrid.CellColorPair pair =
+ 				(TextGrid.CellColorPair) cellColorPairs.next();
++			
+ 			ShapePoint point =
+ 				new ShapePoint(getCellMidX(pair.cell), getCellMidY(pair.cell));
+-			Iterator shapes = getShapes().iterator();
+-			while(shapes.hasNext()){
+-				DiagramShape shape = (DiagramShape) shapes.next();
+-				if(shape.contains(point)) shape.setFillColor(pair.color);  
+-			}
++			DiagramShape containingShape = findSmallestShapeContaining(point);
++			
++			if(containingShape != null)
++				containingShape.setFillColor(pair.color);
+ 		}
+ 
+ 		//assign markup to shapes
+-		Iterator cellTagPairs = grid.findMarkupTags().iterator();
++		Iterator<CellTagPair> cellTagPairs = grid.findMarkupTags().iterator();
+ 		while(cellTagPairs.hasNext()){
+ 			TextGrid.CellTagPair pair =
+ 				(TextGrid.CellTagPair) cellTagPairs.next();
++			
+ 			ShapePoint point =
+ 				new ShapePoint(getCellMidX(pair.cell), getCellMidY(pair.cell));
+-
+-			//find the smallest shape that contains the tag
+-			DiagramShape containingShape = null;
+-			Iterator shapes = getShapes().iterator();
+-			while(shapes.hasNext()){
+-				DiagramShape shape = (DiagramShape) shapes.next();
+-				if(shape.contains(point)){
+-					if(containingShape == null){
+-						containingShape = shape;
+-					} else {
+-						if(shape.isSmallerThan(containingShape)){
+-							containingShape = shape;
+-						}
+-					}
+-				}
+-			}
++			
++			DiagramShape containingShape = findSmallestShapeContaining(point);
+ 			
+ 			//this tag is not within a shape, skip
+ 			if(containingShape == null) continue;
+@@ -413,7 +413,7 @@ public class Diagram {
+ 			//TODO: the code below could be a lot more concise
+ 			if(pair.tag.equals("d")){
+ 				CustomShapeDefinition def =
+-					processingOptions.getFromCustomShapes("d");
++					options.processingOptions.getFromCustomShapes("d");
+ 				if(def == null)
+ 					containingShape.setType(DiagramShape.TYPE_DOCUMENT);
+ 				else {
+@@ -422,7 +422,7 @@ public class Diagram {
+ 				}
+ 			} else if(pair.tag.equals("s")){
+ 				CustomShapeDefinition def =
+-					processingOptions.getFromCustomShapes("s");
++					options.processingOptions.getFromCustomShapes("s");
+ 				if(def == null)
+ 					containingShape.setType(DiagramShape.TYPE_STORAGE);
+ 				else {
+@@ -431,7 +431,7 @@ public class Diagram {
+ 				}
+ 			} else if(pair.tag.equals("io")){
+ 				CustomShapeDefinition def =
+-					processingOptions.getFromCustomShapes("io");
++					options.processingOptions.getFromCustomShapes("io");
+ 				if(def == null)
+ 					containingShape.setType(DiagramShape.TYPE_IO);
+ 				else {
+@@ -440,7 +440,7 @@ public class Diagram {
+ 				}
+ 			} else if(pair.tag.equals("c")){
+ 				CustomShapeDefinition def =
+-					processingOptions.getFromCustomShapes("c");
++					options.processingOptions.getFromCustomShapes("c");
+ 				if(def == null)
+ 					containingShape.setType(DiagramShape.TYPE_DECISION);
+ 				else {
+@@ -449,7 +449,7 @@ public class Diagram {
+ 				}
+ 			} else if(pair.tag.equals("mo")){
+ 				CustomShapeDefinition def =
+-					processingOptions.getFromCustomShapes("mo");
++					options.processingOptions.getFromCustomShapes("mo");
+ 				if(def == null)
+ 					containingShape.setType(DiagramShape.TYPE_MANUAL_OPERATION);
+ 				else {
+@@ -458,7 +458,7 @@ public class Diagram {
+ 				}
+ 			} else if(pair.tag.equals("tr")){
+ 				CustomShapeDefinition def =
+-					processingOptions.getFromCustomShapes("tr");
++					options.processingOptions.getFromCustomShapes("tr");
+ 				if(def == null)
+ 					containingShape.setType(DiagramShape.TYPE_TRAPEZOID);
+ 				else {
+@@ -467,7 +467,7 @@ public class Diagram {
+ 				}
+ 			} else if(pair.tag.equals("o")){
+ 				CustomShapeDefinition def =
+-					processingOptions.getFromCustomShapes("o");
++					options.processingOptions.getFromCustomShapes("o");
+ 				if(def == null)
+ 					containingShape.setType(DiagramShape.TYPE_ELLIPSE);
+ 				else {
+@@ -476,25 +476,25 @@ public class Diagram {
+ 				}
+ 			} else {
+ 				CustomShapeDefinition def =
+-					processingOptions.getFromCustomShapes(pair.tag);
++					options.processingOptions.getFromCustomShapes(pair.tag);
+ 				containingShape.setType(DiagramShape.TYPE_CUSTOM);
+ 				containingShape.setDefinition(def);						
+ 			}
+ 		}
+ 		
+ 		//make arrowheads
+-		Iterator arrowheadCells = workGrid.findArrowheads().iterator();
++		Iterator<Cell> arrowheadCells = workGrid.findArrowheads().iterator();
+ 		while(arrowheadCells.hasNext()){
+-			TextGrid.Cell cell = (TextGrid.Cell) arrowheadCells.next();
++			TextGrid.Cell cell = arrowheadCells.next();
+ 			DiagramShape arrowhead = DiagramShape.createArrowhead(workGrid, cell, cellWidth, cellHeight);
+ 			if(arrowhead != null) addToShapes(arrowhead);
+ 			else System.err.println("Could not create arrowhead shape. Unexpected error.");
+ 		}
+ 		
+ 		//make point markers
+-		Iterator markersIt = grid.getPointMarkersOnLine().iterator();
++		Iterator<TextGrid.Cell> markersIt = grid.getPointMarkersOnLine().iterator();
+ 		while (markersIt.hasNext()) {
+-			TextGrid.Cell cell = (TextGrid.Cell) markersIt.next();
++			TextGrid.Cell cell = markersIt.next();
+ 
+ 			DiagramShape mark = new DiagramShape();
+ 			mark.addToPoints(new ShapePoint(
+@@ -523,22 +523,22 @@ public class Diagram {
+ 		//kludge
+ 		textGroupGrid.fillCellsWith(gaps, '|');
+ 		CellSet nonBlank = textGroupGrid.getAllNonBlank();
+-		ArrayList textGroups = nonBlank.breakIntoDistinctBoundaries();
++		ArrayList<CellSet> textGroups = nonBlank.breakIntoDistinctBoundaries();
+ 		if(DEBUG) System.out.println(textGroups.size()+" text groups found");
+ 		
+ 		Font font = FontMeasurer.instance().getFontFor(cellHeight);
+ 		
+-		Iterator textGroupIt = textGroups.iterator();
++		Iterator<CellSet> textGroupIt = textGroups.iterator();
+ 		while(textGroupIt.hasNext()){
+ 			CellSet textGroupCellSet = (CellSet) textGroupIt.next();
+ 			
+ 			TextGrid isolationGrid = new TextGrid(width, height);
+ 			workGrid.copyCellsTo(textGroupCellSet, isolationGrid);
+ 			 
+-			ArrayList strings = isolationGrid.findStrings();
+-			Iterator it = strings.iterator();
++			ArrayList<CellStringPair> strings = isolationGrid.findStrings();
++			Iterator<CellStringPair> it = strings.iterator();
+ 			while(it.hasNext()){
+-				TextGrid.CellStringPair pair = (TextGrid.CellStringPair) it.next();
++				TextGrid.CellStringPair pair = it.next();
+ 				TextGrid.Cell cell = pair.cell;
+ 				String string = pair.string;
+ 				if (DEBUG)
+@@ -583,30 +583,21 @@ public class Diagram {
+ 		
+ 		//correct the color of the text objects according
+ 		//to the underlying color
+-		Iterator shapes = this.getAllDiagramShapes().iterator();
+-		while(shapes.hasNext()){
+-			DiagramShape shape = (DiagramShape) shapes.next();
+-			Color fillColor = shape.getFillColor();
+-			if(shape.isClosed()
+-					&& shape.getType() != DiagramShape.TYPE_ARROWHEAD
+-					&& fillColor != null
+-					&& BitmapRenderer.isColorDark(fillColor)){
+-				Iterator textObjects = getTextObjects().iterator();
+-				while(textObjects.hasNext()){
+-					DiagramText textObject = (DiagramText) textObjects.next();
+-					if(shape.intersects(textObject.getBounds())){
+-						textObject.setColor(Color.white);
+-					}
+-				}
++		for(DiagramText textObject : getTextObjects()) {
++			DiagramShape shape = findSmallestShapeIntersecting(textObject.getBounds());
++			if(shape != null 
++					&& shape.getFillColor() != null 
++					&& BitmapRenderer.isColorDark(shape.getFillColor())) {
++				textObject.setColor(Color.white);
+ 			}
+ 		}
+ 
+ 		//set outline to true for test within custom shapes
+-		shapes = this.getAllDiagramShapes().iterator();
++		Iterator<DiagramShape> shapes = this.getAllDiagramShapes().iterator();
+ 		while(shapes.hasNext()){
+ 			DiagramShape shape = (DiagramShape) shapes.next();
+ 			if(shape.getType() == DiagramShape.TYPE_CUSTOM){
+-				Iterator textObjects = getTextObjects().iterator();
++				Iterator<DiagramText> textObjects = getTextObjects().iterator();
+ 				while(textObjects.hasNext()){
+ 					DiagramText textObject = (DiagramText) textObjects.next();
+ 					textObject.setHasOutline(true);
+@@ -626,13 +617,11 @@ public class Diagram {
+ 	 * 
+ 	 * @return
+ 	 */
+-	public ArrayList getAllDiagramShapes(){
+-		ArrayList shapes = new ArrayList();
++	public ArrayList<DiagramShape> getAllDiagramShapes(){
++		ArrayList<DiagramShape> shapes = new ArrayList<DiagramShape>();
+ 		shapes.addAll(this.getShapes());
+ 		
+-		Iterator shapesIt = this.getCompositeShapes().iterator();
+-		while(shapesIt.hasNext()){
+-			CompositeDiagramShape compShape = (CompositeDiagramShape) shapesIt.next();
++		for(CompositeDiagramShape compShape : getCompositeShapes()) {
+ 			shapes.addAll(compShape.getShapes());
+ 		}
+ 		return shapes;		
+@@ -655,7 +644,7 @@ public class Diagram {
+ 
+ 		Iterator it;
+ 
+-		if(VERBOSE_DEBUG) {
++		if(DEBUG_VERBOSE) {
+ 			System.out.println("******* Sets before *******");
+ 			it = sets.iterator();
+ 			while(it.hasNext()){
+@@ -679,7 +668,7 @@ public class Diagram {
+ 		while(it.hasNext()){
+ 			CellSet set = (CellSet) it.next();
+ 			
+-			if(VERBOSE_DEBUG){
++			if(DEBUG_VERBOSE){
+ 				System.out.println("*** Deciding if the following should be removed:");
+ 				set.printAsGrid();
+ 			}
+@@ -707,7 +696,7 @@ public class Diagram {
+ 				}
+ 			}
+ 			
+-			if(VERBOSE_DEBUG){
++			if(DEBUG_VERBOSE){
+ 				System.out.println("Largest:");
+ 				largest.printAsGrid();
+ 			}
+@@ -721,13 +710,13 @@ public class Diagram {
+ 			it2 = common.iterator();
+ 			while(it2.hasNext()){
+ 				CellSet set2 = (CellSet) it2.next();
+-				if(VERBOSE_DEBUG){
++				if(DEBUG_VERBOSE){
+ 					System.out.println("One of smalls:");
+ 					set2.printAsGrid();
+ 				}
+ 				gridOfSmalls.fillCellsWith(set2, '*');
+ 			}
+-			if(VERBOSE_DEBUG){
++			if(DEBUG_VERBOSE){
+ 				System.out.println("Sum of smalls:");
+ 				gridOfSmalls.printDebug();
+ 			}
+@@ -742,10 +731,10 @@ public class Diagram {
+ 					System.out.println("Decided to remove set:");
+ 					largest.printAsGrid();
+ 				}
+-			} else if (DEBUG){
++			} /*else if (DEBUG){
+ 				System.out.println("This set WILL NOT be removed:");
+ 				largest.printAsGrid();
+-			}
++			}*/
+ 			//if(gridLargest.equals(gridOfSmalls)) toBeRemovedIndices.add(new Integer(index));
+ 		}
+ 		
+@@ -763,7 +752,7 @@ public class Diagram {
+ 			sets.remove(set);
+ 		}
+ 	
+-		if(VERBOSE_DEBUG) {
++		if(DEBUG_VERBOSE) {
+ 			System.out.println("******* Sets after *******");
+ 			it = sets.iterator();
+ 			while(it.hasNext()){
+@@ -853,6 +842,42 @@ public class Diagram {
+ 		shapes.addAll(originalShapes);
+ 	}
+ 	
++	private DiagramShape findSmallestShapeContaining(ShapePoint point) {
++		DiagramShape containingShape = null;
++		Iterator<DiagramShape> shapes = getShapes().iterator();
++		while(shapes.hasNext()){
++			DiagramShape shape = shapes.next();
++			if(shape.contains(point)){
++				if(containingShape == null){
++					containingShape = shape;
++				} else {
++					if(shape.isSmallerThan(containingShape)){
++						containingShape = shape;
++					}
++				}
++			}
++		}
++		return containingShape;
++	}
++	
++	private DiagramShape findSmallestShapeIntersecting(Rectangle2D rect) {
++		DiagramShape intersectingShape = null;
++		Iterator<DiagramShape> shapes = getShapes().iterator();
++		while(shapes.hasNext()){
++			DiagramShape shape = shapes.next();
++			if(shape.intersects(rect)){
++				if(intersectingShape == null){
++					intersectingShape = shape;
++				} else {
++					if(shape.isSmallerThan(intersectingShape)){
++						intersectingShape = shape;
++					}
++				}
++			}
++		}
++		return intersectingShape;
++	}
++	
+ 	private void addToTextObjects(DiagramText shape){
+ 		textObjects.add(shape);
+ 	}
+@@ -901,14 +926,14 @@ public class Diagram {
+ 	/**
+ 	 * @return
+ 	 */
+-	public ArrayList getCompositeShapes() {
++	public ArrayList<CompositeDiagramShape> getCompositeShapes() {
+ 		return compositeShapes;
+ 	}
+ 
+ 	/**
+ 	 * @return
+ 	 */
+-	public ArrayList getShapes() {
++	public ArrayList<DiagramShape> getShapes() {
+ 		return shapes;
+ 	}
+ 	
+@@ -966,7 +991,7 @@ public class Diagram {
+ 	/**
+ 	 * @return
+ 	 */
+-	public ArrayList getTextObjects() {
++	public ArrayList<DiagramText> getTextObjects() {
+ 		return textObjects;
+ 	}
+ 
+diff --git a/src/org/stathissideris/ascii2image/graphics/DiagramComponent.java b/src/org/stathissideris/ascii2image/graphics/DiagramComponent.java
+index a0699d2..efaee3a 100644
+--- a/src/org/stathissideris/ascii2image/graphics/DiagramComponent.java
++++ b/src/org/stathissideris/ascii2image/graphics/DiagramComponent.java
+@@ -1,25 +1,27 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.graphics;
+ 
++import java.util.ArrayList;
++import java.util.Iterator;
++
+ import org.stathissideris.ascii2image.text.CellSet;
+ import org.stathissideris.ascii2image.text.TextGrid;
+ 
+@@ -108,8 +110,8 @@ public abstract class DiagramComponent {
+ 				return null;
+ 			} else {
+ 				throw new RuntimeException("cannot create closed shape from boundary cells, nowhere to go from "
+-						+ cell + " coming from " + previous + " in grid:\n" + grid
+-						+"\nmaybe you have an edge pointing nowhere?");
++						  + cell + " coming from " + previous + " in grid:\n" + grid
++						  +"\nmaybe you have an edge pointing nowhere?");
+ 			}
+ 		}
+ 		
+diff --git a/src/org/stathissideris/ascii2image/graphics/DiagramShape.java b/src/org/stathissideris/ascii2image/graphics/DiagramShape.java
+index 7a15133..a96f166 100644
+--- a/src/org/stathissideris/ascii2image/graphics/DiagramShape.java
++++ b/src/org/stathissideris/ascii2image/graphics/DiagramShape.java
+@@ -1,35 +1,35 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.graphics;
+ 
+ import java.awt.Color;
+ import java.awt.Rectangle;
+-import java.awt.geom.Ellipse2D;
+ import java.awt.geom.GeneralPath;
+ import java.awt.geom.Rectangle2D;
++import java.awt.geom.Ellipse2D;
+ import java.util.ArrayList;
+ import java.util.HashMap;
+ import java.util.Iterator;
+ 
+-import org.stathissideris.ascii2image.text.TextGrid;
++import org.stathissideris.ascii2image.core.RenderingOptions;
++import org.stathissideris.ascii2image.text.*;
+ 
+ /**
+  * 
+@@ -51,6 +51,9 @@ public class DiagramShape extends DiagramComponent {
+ 	public static final int TYPE_ELLIPSE = 9;
+ 	public static final int TYPE_CUSTOM = 9999;
+ 
++	/** The slope of side lines on trapezoids (mo, tr) and parallelograms (io). */
++	public static final float SHAPE_SLOPE = 8;
++
+ 	protected int type = TYPE_SIMPLE;
+ 
+ 	private Color fillColor = null;
+@@ -59,7 +62,7 @@ public class DiagramShape extends DiagramComponent {
+ 	private boolean isClosed = false;
+ 	private boolean isStrokeDashed = false;
+ 
+-	protected ArrayList points = new ArrayList();
++	protected ArrayList<ShapePoint> points = new ArrayList<ShapePoint>();
+ 
+ 	CustomShapeDefinition definition = null;
+ 
+@@ -392,7 +395,7 @@ public class DiagramShape extends DiagramComponent {
+ 		return bounds;
+ 	}
+ 	
+-	public GeneralPath makeIntoRenderPath(Diagram diagram) {
++	public GeneralPath makeIntoRenderPath(Diagram diagram, RenderingOptions options) {
+ 		int size = getPoints().size();
+ 		
+ 		if(getType() == TYPE_POINT_MARKER){
+@@ -408,7 +411,7 @@ public class DiagramShape extends DiagramComponent {
+ 		}
+ 
+ 		if(getType() == TYPE_IO && points.size() == 4){
+-			return makeIOPath(diagram);
++			return makeIOPath(diagram, options);
+ 		}
+ 
+ 		if(getType() == TYPE_DECISION && points.size() == 4){
+@@ -416,11 +419,11 @@ public class DiagramShape extends DiagramComponent {
+ 		}
+ 
+ 		if(getType() == TYPE_MANUAL_OPERATION && points.size() == 4){
+-			return makeTrapezoidPath(diagram, true);
++			return makeTrapezoidPath(diagram, options, true);
+ 		}
+ 
+ 		if(getType() == TYPE_TRAPEZOID && points.size() == 4){
+-			return makeTrapezoidPath(diagram, false);
++			return makeTrapezoidPath(diagram, options, false);
+ 		}
+ 
+ 		if(getType() == TYPE_ELLIPSE && points.size() == 4){
+@@ -596,7 +599,7 @@ public class DiagramShape extends DiagramComponent {
+ 		TextGrid.Cell cell = diagram.getCellFor(pointInCell);
+ 		
+ 		if(cell == null)
+-			throw new RuntimeException("Upexpected error, cannot find cell corresponding to point "+pointInCell+" for diagram "+diagram);
++			throw new RuntimeException("Unexpected error, cannot find cell corresponding to point "+pointInCell+" for diagram "+diagram);
+ 		
+ 		if(otherPoint.isNorthOf(pointInCell))
+ 			result = new ShapePoint(pointInCell.x,
+@@ -612,7 +615,7 @@ public class DiagramShape extends DiagramComponent {
+ 										pointInCell.y);
+ 		
+ 		if(result == null)
+-			throw new RuntimeException("Upexpected error, cannot find cell edge point for points "+pointInCell+" and "+otherPoint+" for diagram "+diagram);
++			throw new RuntimeException("Unexpected error, cannot find cell edge point for points "+pointInCell+" and "+otherPoint+" for diagram "+diagram);
+ 
+ 		
+ 		return result;
+@@ -878,11 +881,11 @@ public class DiagramShape extends DiagramComponent {
+ 		return path;
+ 	}
+ 
+-	private GeneralPath makeTrapezoidPath(Diagram diagram, boolean inverted) {
++	private GeneralPath makeTrapezoidPath(Diagram diagram, RenderingOptions options, boolean inverted) {
+ 		if(points.size() != 4) return null;
+ 		Rectangle bounds = makeIntoPath().getBounds();
+-        float offset = 0.7f * diagram.getCellWidth(); // fixed slope
+-        if (inverted) offset = -offset;
++		float offset = options.isFixedSlope() ? bounds.height / SHAPE_SLOPE : diagram.getCellWidth() * 0.5f;
++		if (inverted) offset = -offset;
+ 		ShapePoint ul = new ShapePoint((float)bounds.getMinX() + offset, (float)bounds.getMinY());
+ 		ShapePoint ur = new ShapePoint((float)bounds.getMaxX() - offset, (float)bounds.getMinY());
+ 		ShapePoint br = new ShapePoint((float)bounds.getMaxX() + offset, (float)bounds.getMaxY());
+@@ -903,7 +906,7 @@ public class DiagramShape extends DiagramComponent {
+ 	private GeneralPath makeDecisionPath(Diagram diagram) {
+ 		if(points.size() != 4) return null;
+ 		Rectangle bounds = makeIntoPath().getBounds();
+-        ShapePoint pointMid = new ShapePoint((float)bounds.getCenterX(), (float)bounds.getCenterY());
++		ShapePoint pointMid = new ShapePoint((float)bounds.getCenterX(), (float)bounds.getCenterY());
+ 		ShapePoint left = new ShapePoint((float)bounds.getMinX(), (float)pointMid.getY());
+ 		ShapePoint right = new ShapePoint((float)bounds.getMaxX(), (float)pointMid.getY());
+ 		ShapePoint top = new ShapePoint((float)pointMid.getX(), (float)bounds.getMinY());
+@@ -920,7 +923,7 @@ public class DiagramShape extends DiagramComponent {
+ 		return path;
+ 	}
+ 
+-	private GeneralPath makeIOPath(Diagram diagram) {
++	private GeneralPath makeIOPath(Diagram diagram, RenderingOptions options) {
+ 		if(points.size() != 4) return null;
+ 		Rectangle bounds = makeIntoPath().getBounds();
+ 		ShapePoint point1 = new ShapePoint((float)bounds.getMinX(), (float)bounds.getMinY());
+@@ -928,7 +931,7 @@ public class DiagramShape extends DiagramComponent {
+ 		ShapePoint point3 = new ShapePoint((float)bounds.getMaxX(), (float)bounds.getMaxY());
+ 		ShapePoint point4 = new ShapePoint((float)bounds.getMinX(), (float)bounds.getMaxY());
+ 	
+-		float offset = diagram.getCellWidth() / 2;
++        float offset = options.isFixedSlope() ? bounds.height / SHAPE_SLOPE : diagram.getCellWidth() * 0.5f;
+ 		
+ 		GeneralPath path = new GeneralPath();
+ 		path.moveTo(point1.x + offset, point1.y);
+@@ -948,4 +951,28 @@ public class DiagramShape extends DiagramComponent {
+ 		this.definition = definition;
+ 	}
+ 
++	/**
++	 * See http://mathworld.wolfram.com/PolygonArea.html
++	 * 
++	 * @return the overall area of the shape
++	 */
++	public double calculateArea() {
++		if(points.size() == 0) return 0;
++		
++		double area = 0;
++		
++		for(int i = 0; i < points.size() - 1; i++){
++			ShapePoint point1 = points.get(i);
++			ShapePoint point2 = points.get(i + 1);
++			area += point1.x * point2.y;
++			area -= point2.x * point1.y;
++		}
++		ShapePoint point1 = points.get(points.size() - 1);
++		ShapePoint point2 = points.get(0);
++		area += point1.x * point2.y;
++		area -= point2.x * point1.y;
++		
++		return Math.abs(area / 2);
++	}
++	
+ }
+diff --git a/src/org/stathissideris/ascii2image/graphics/DiagramText.java b/src/org/stathissideris/ascii2image/graphics/DiagramText.java
+index 58c984d..ef411ca 100644
+--- a/src/org/stathissideris/ascii2image/graphics/DiagramText.java
++++ b/src/org/stathissideris/ascii2image/graphics/DiagramText.java
+@@ -1,27 +1,27 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.graphics;
+ 
+ import java.awt.Color;
+ import java.awt.Font;
++import java.awt.Rectangle;
+ import java.awt.geom.Rectangle2D;
+ 
+ /**
+diff --git a/src/org/stathissideris/ascii2image/graphics/FontMeasurer.java b/src/org/stathissideris/ascii2image/graphics/FontMeasurer.java
+index 665c0f3..6cdac3e 100644
+--- a/src/org/stathissideris/ascii2image/graphics/FontMeasurer.java
++++ b/src/org/stathissideris/ascii2image/graphics/FontMeasurer.java
+@@ -1,21 +1,20 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.graphics;
+@@ -23,11 +22,15 @@ package org.stathissideris.ascii2image.graphics;
+ import java.awt.Font;
+ import java.awt.FontMetrics;
+ import java.awt.Graphics2D;
++import java.awt.GraphicsEnvironment;
++import java.awt.Rectangle;
+ import java.awt.font.FontRenderContext;
+ import java.awt.geom.Rectangle2D;
+ import java.awt.image.BufferedImage;
+ import java.util.Locale;
+ 
++import javax.swing.JOptionPane;
++
+ /**
+  * 
+  * @author Efstathios Sideris
+@@ -47,7 +50,7 @@ public class FontMeasurer {
+ 		BufferedImage image = new BufferedImage(1,1, BufferedImage.TYPE_INT_RGB);
+ 		fakeGraphics = image.createGraphics();
+ 		
+-		if (DEBUG) System.out.println("Locale: "+Locale.getDefault());
++		if(DEBUG) System.out.println("Locale: "+Locale.getDefault());
+ 		
+ 		fakeRenderContext = fakeGraphics.getFontRenderContext();
+ 	}		 
+@@ -139,7 +142,7 @@ public class FontMeasurer {
+ 		float size = 12;
+ 		Font currentFont = new Font(fontFamilyName, Font.BOLD, (int) size);
+ //		Font currentFont = new Font("Times", Font.BOLD, (int) size);
+-		if (DEBUG) System.out.println(currentFont.getFontName());
++		if(DEBUG) System.out.println(currentFont.getFontName());
+ 		//ascent is the distance between the baseline and the tallest character
+ 		int ascent = getAscent(currentFont);
+ 
+@@ -183,7 +186,7 @@ public class FontMeasurer {
+ 		//FontMeasurer.instance().getFontFor(7);
+ 		float size = 12;
+ 		Font currentFont = new Font("Sans", Font.BOLD, (int) size);
+-		System.out.println(currentFont.getSize());
++		if(DEBUG) System.out.println(currentFont.getSize());
+ 		currentFont = currentFont.deriveFont(--size);
+ 		System.out.println(currentFont.getSize());
+ 		currentFont = currentFont.deriveFont(--size);
+diff --git a/src/org/stathissideris/ascii2image/graphics/ImageHandler.java b/src/org/stathissideris/ascii2image/graphics/ImageHandler.java
+index 4c89799..74f8d98 100644
+--- a/src/org/stathissideris/ascii2image/graphics/ImageHandler.java
++++ b/src/org/stathissideris/ascii2image/graphics/ImageHandler.java
+@@ -1,36 +1,64 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.graphics;
+ 
++import java.awt.Color;
+ import java.awt.Image;
+ import java.awt.MediaTracker;
++import java.awt.Rectangle;
+ import java.awt.Toolkit;
++import java.awt.geom.AffineTransform;
++import java.awt.image.BufferedImage;
++import java.io.File;
++import java.io.FileOutputStream;
++import java.io.IOException;
++import java.io.OutputStream;
++import java.net.URI;
+ import java.net.URL;
+ 
++import javax.imageio.ImageIO;
++import javax.swing.ImageIcon;
++import javax.swing.JButton;
++import javax.swing.JFrame;
+ import javax.swing.JLabel;
+ 
++import org.apache.batik.bridge.BridgeContext;
++import org.apache.batik.bridge.GVTBuilder;
++import org.apache.batik.bridge.UserAgentAdapter;
++import org.apache.batik.anim.dom.SAXSVGDocumentFactory;
++import org.apache.batik.dom.util.DocumentFactory;
++import org.apache.batik.ext.awt.image.codec.png.PNGEncodeParam;
++import org.apache.batik.ext.awt.image.codec.png.PNGImageEncoder;
++import org.apache.batik.gvt.GraphicsNode;
++import org.apache.batik.gvt.renderer.ConcreteImageRendererFactory;
++import org.apache.batik.gvt.renderer.ImageRenderer;
++import org.apache.batik.gvt.renderer.ImageRendererFactory;
++import org.apache.batik.gvt.renderer.StaticRenderer;
++import org.stathissideris.ascii2image.core.FileUtils;
++import org.w3c.dom.Document;
++import org.w3c.dom.svg.SVGDocument;
++
+ public class ImageHandler {
+ 	
+-//	private static OffScreenSVGRenderer svgRenderer = 
+-//		new OffScreenSVGRenderer();
++	private static OffScreenSVGRenderer svgRenderer = 
++		new OffScreenSVGRenderer();
+ 	
+ 	private static ImageHandler instance = new ImageHandler();
+ 	
+@@ -40,6 +68,10 @@ public class ImageHandler {
+ 	
+ 	private static final MediaTracker tracker = new MediaTracker(new JLabel());
+ 	
++	public BufferedImage loadBufferedImage(File file) throws IOException {
++		return ImageIO.read(file);
++	}
++	
+ 	public Image loadImage(String filename){
+ 		URL url = ClassLoader.getSystemResource(filename);
+ 		Image result = null;
+@@ -62,17 +94,46 @@ public class ImageHandler {
+ 		return result;
+ 	}
+ 	
+-//	public BufferedImage renderSVG(String filename, int width, int height, boolean stretch) throws IOException {
+-//		File file = new File(filename);
+-//		URI uri = file.toURI();
+-//		return svgRenderer.renderToImage(uri.toString(), width, height, stretch, null, null);
+-//	}
+-//
+-//	public BufferedImage renderSVG(String filename, int width, int height, boolean stretch, String idRegex, Color color) throws IOException {
+-//		File file = new File(filename);
+-//		URI uri = file.toURI();
+-//		return svgRenderer.renderToImage(uri.toString(), width, height, stretch, idRegex, color);
+-//	}
++	public BufferedImage renderSVG(String filename, int width, int height, boolean stretch) throws IOException {
++		File file = new File(filename);
++		URI uri = file.toURI();
++		return svgRenderer.renderToImage(uri.toString(), width, height, stretch, null, null);
++	}
++
++	public BufferedImage renderSVG(String filename, int width, int height, boolean stretch, String idRegex, Color color) throws IOException {
++		File file = new File(filename);
++		URI uri = file.toURI();
++		return svgRenderer.renderToImage(uri.toString(), width, height, stretch, idRegex, color);
++	}
+ 
+ 	
++	public static void main(String[] args) throws IOException{
++		
++		OffScreenSVGRenderer renderer = new OffScreenSVGRenderer();
++		
++		//BufferedImage image = instance.renderSVG("sphere.svg", 200, 200, false);
++		
++		//BufferedImage image = renderer.renderToImage("file:///Users/sideris/Documents/workspace/ditaa/joystick.svg", FileUtils.readFile(new File("joystick.svg")), 400, 200, false);
++//		BufferedImage image = renderer.renderToImage(
++//			null, FileUtils.readFile(new File("sphere.svg")).replaceFirst("#187637", "#3333FF"), 200, 200, false);
++		
++		String content = FileUtils.readFile(new File("sphere.svg")).replaceAll("#187637", "#1133FF");
++		
++		System.out.println(content);
++		
++//		BufferedImage image = renderer.renderToImage(
++//				"file:/K:/devel/ditaa/sphere.svg", content, 200, 200, false);
++
++		BufferedImage image = renderer.renderXMLToImage(content, 200, 200, false, null, null);
++
++		
++		try {
++			File file = new File("testing.png");
++			ImageIO.write(image, "png", file);
++		} catch (IOException e) {
++			//e.printStackTrace();
++			System.err.println("Error: Cannot write to file");
++		}
++
++	}
+ }
+diff --git a/src/org/stathissideris/ascii2image/graphics/OffScreenSVGRenderer.java b/src/org/stathissideris/ascii2image/graphics/OffScreenSVGRenderer.java
+new file mode 100644
+index 0000000..21c88bc
+--- /dev/null
++++ b/src/org/stathissideris/ascii2image/graphics/OffScreenSVGRenderer.java
+@@ -0,0 +1,138 @@
++/**
++ * ditaa - Diagrams Through Ascii Art
++ * 
++ * Copyright (C) 2004-2011 Efstathios Sideris
++ *
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
++ *
++ * ditaa is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
++ *   
++ */
++package org.stathissideris.ascii2image.graphics;
++
++import java.awt.Color;
++import java.awt.Rectangle;
++import java.awt.geom.AffineTransform;
++import java.awt.image.BufferedImage;
++import java.io.IOException;
++import java.io.StringReader;
++
++import org.apache.batik.bridge.BridgeContext;
++import org.apache.batik.bridge.GVTBuilder;
++import org.apache.batik.bridge.UserAgentAdapter;
++import org.apache.batik.anim.dom.SAXSVGDocumentFactory;
++import org.apache.batik.gvt.GraphicsNode;
++import org.apache.batik.gvt.renderer.ConcreteImageRendererFactory;
++import org.apache.batik.gvt.renderer.ImageRenderer;
++import org.apache.batik.gvt.renderer.ImageRendererFactory;
++import org.w3c.dom.NodeList;
++import org.w3c.dom.svg.SVGDocument;
++import org.w3c.dom.svg.SVGElement;
++
++public class OffScreenSVGRenderer {
++		
++	private static final boolean DEBUG = false;
++	
++	public BufferedImage renderXMLToImage(String xmlContent, int width, int height) throws IOException {
++		return renderXMLToImage(xmlContent, width, height, false, null, null);
++	}
++	
++	public BufferedImage renderXMLToImage(String xmlContent, int width, int height, boolean stretch, String idRegex, Color replacementColor) throws IOException {
++		// the following is necessary so that batik knows how to resolve URI fragments
++		// (#myLinearGradient). Otherwise the resolution fails and you cannot render.
++		
++		String uri = "file:/fake.svg";
++		
++		SAXSVGDocumentFactory df = new SAXSVGDocumentFactory("org.apache.xerces.parsers.SAXParser");
++		SVGDocument document = df.createSVGDocument(uri, new StringReader(xmlContent));
++		if(idRegex != null && replacementColor != null)
++			replaceFill(document, idRegex, replacementColor);
++		return renderToImage(document, width, height, stretch);		
++	}
++	
++	public BufferedImage renderToImage(String uri, int width, int height) throws IOException {
++		return renderToImage(uri, width, height, false, null, null);
++	}
++	
++	public BufferedImage renderToImage(String uri, int width, int height, boolean stretch, String idRegex, Color replacementColor) throws IOException {
++		SAXSVGDocumentFactory df = new SAXSVGDocumentFactory("org.apache.xerces.parsers.SAXParser");
++		SVGDocument document = df.createSVGDocument(uri);
++		if(idRegex != null && replacementColor != null)
++			replaceFill(document, idRegex, replacementColor);
++		return renderToImage(document, width, height, stretch);
++	}
++	
++	public BufferedImage renderToImage(SVGDocument document, int width, int height){
++		return renderToImage(document, width, height, false);
++	}
++	
++	public void replaceFill(SVGDocument document, String idRegex, Color color){
++		String colorCode = String.format("#%02x%02x%02x", color.getRed(), color.getGreen(), color.getBlue()); 
++		
++		if(DEBUG) System.out.println("color code: "+colorCode);
++		
++		NodeList children = document.getElementsByTagName("*");
++		for(int i = 0; i < children.getLength(); i++){
++			if(children.item(i) instanceof SVGElement){
++				SVGElement element = (SVGElement) children.item(i);
++				if(element.getId().matches(idRegex)){
++					if(DEBUG) System.out.println("child>>> "+element+", "+element.getId());
++					String style = element.getAttributeNS(null, "style");
++					style = style.replaceFirst("fill:#[a-zA-z0-9]+", "fill:"+colorCode);
++					if(DEBUG) System.out.println(style);
++					element.setAttributeNS(null, "style", style);
++				}
++			}
++		}
++	}
++	
++	public BufferedImage renderToImage(SVGDocument document, int width, int height, boolean stretch){
++		
++		ImageRendererFactory rendererFactory;
++		rendererFactory = new ConcreteImageRendererFactory();
++		ImageRenderer renderer = rendererFactory.createStaticImageRenderer();
++
++		GVTBuilder builder = new GVTBuilder();
++		BridgeContext ctx = new BridgeContext(new UserAgentAdapter());
++		ctx.setDynamicState(BridgeContext.STATIC);
++		GraphicsNode rootNode = builder.build(ctx, document);
++
++		renderer.setTree(rootNode);
++		
++		float docWidth  = (float) ctx.getDocumentSize().getWidth();
++		float docHeight = (float) ctx.getDocumentSize().getHeight();
++		
++		float xscale = width/docWidth;
++		float yscale = height/docHeight;
++		if(!stretch){
++			float scale = Math.min(xscale, yscale);
++			xscale = scale;
++			yscale = scale;
++		}
++		
++		AffineTransform px  = AffineTransform.getScaleInstance(xscale, yscale);
++		
++		double tx = -0 + (width/xscale - docWidth)/2;
++		double ty = -0 + (height/yscale - docHeight)/2;
++		px.translate(tx, ty);
++		//cgn.setViewingTransform(px);
++		
++		renderer.updateOffScreen(width, height);
++		renderer.setTree(rootNode);
++		renderer.setTransform(px);
++		//renderer.clearOffScreen();
++		renderer.repaint(new Rectangle(0, 0, width, height));
++
++		return renderer.getOffScreen();
++
++	}
++}
+diff --git a/src/org/stathissideris/ascii2image/graphics/SVGBuilder.java b/src/org/stathissideris/ascii2image/graphics/SVGBuilder.java
+new file mode 100644
+index 0000000..7be7cd5
+--- /dev/null
++++ b/src/org/stathissideris/ascii2image/graphics/SVGBuilder.java
+@@ -0,0 +1,416 @@
++package org.stathissideris.ascii2image.graphics;
++
++import org.stathissideris.ascii2image.core.RenderingOptions;
++import org.stathissideris.ascii2image.core.ShapeAreaComparator;
++import org.stathissideris.ascii2image.core.Shape3DOrderingComparator;
++
++import java.awt.*;
++import java.awt.geom.GeneralPath;
++import java.awt.geom.PathIterator;
++import java.util.ArrayList;
++
++/**
++ * Created by Jean Lazarou.
++ */
++public class SVGBuilder {
++
++    SVGBuilder(Diagram diagram, RenderingOptions options) {
++
++        this.diagram = diagram;
++        this.options = options;
++
++        float dashInterval = Math.min(diagram.getCellWidth(), diagram.getCellHeight()) / 2;
++        float strokeWeight = diagram.getMinimumOfCellDimension() / 10;
++
++        normalStroke = String.format("stroke-width='%f' stroke-linecap='round' stroke-linejoin='round' ",
++                strokeWeight);
++
++        dashStroke = String.format(
++                "stroke-width='%f' stroke-dasharray='%f,%f' stroke-miterlimit='0' " +
++                        "stroke-linecap='butt' stroke-linejoin='round' ",
++                strokeWeight, dashInterval, dashInterval);
++
++    }
++
++    public String build() {
++
++        return openSVGTag() + definitions() + render() + "</svg>";
++
++    }
++
++    private String definitions() {
++
++        String DEFS =
++                "  <defs>\n%s" +
++                "    <filter id='f2' x='0' y='0' width='200%%' height='200%%'>\n" +
++                "      <feOffset result='offOut' in='SourceGraphic' dx='5' dy='5' />\n" +
++                "      <feGaussianBlur result='blurOut' in='offOut' stdDeviation='3' />\n" +
++                "      <feBlend in='SourceGraphic' in2='blurOut' mode='normal' />\n" +
++                "    </filter>\n" +
++                "  </defs>\n";
++
++        if (options.getFontURL() == null) {
++            return String.format(DEFS, "");
++        }
++
++        String fontStyle =
++            "    <style type='text/css'>\n" +
++            "      @font-face {\n" +
++            "        font-family: %s;\n" +
++            "        src: url('%s');\n" +
++            "      }\n" +
++            "    </style>\n";
++
++        return String.format(DEFS, String.format(fontStyle, options.getFontFamily(), options.getFontURL()));
++
++    }
++
++    private String openSVGTag() {
++
++        String HEADER =
++                "<?xml version='1.0' encoding='UTF-8' standalone='no'?>\n" +
++                "<svg \n" +
++                "    xmlns='http://www.w3.org/2000/svg'\n" +
++                "    width='%d'\n" +
++                "    height='%d'\n" +
++                "    %s\n" +
++                "    version='1.0'>\n";
++
++        return String.format(
++                HEADER,
++                diagram.getWidth(),
++                diagram.getHeight(),
++                antialiasing()
++        );
++
++    }
++
++    private String render() {
++
++        backgroundLayer();
++
++        renderStorageShapes();
++        renderRestOfShapes();
++        renderTexts();
++
++        return "  <g stroke-width='1' stroke-linecap='square' stroke-linejoin='round'>\n" +
++                layer0.toString() +
++                layer1.toString() +
++                layer2.toString() +
++                layer3.toString() +
++                "  </g>\n";
++
++    }
++
++    private void renderStorageShapes() {
++
++        ArrayList<DiagramShape> shapes = diagram.getAllDiagramShapes();
++
++        ArrayList<DiagramShape> storageShapes = findSorageShapes(shapes);
++
++        storageShapes.sort(new Shape3DOrderingComparator());
++
++        for (DiagramShape shape : storageShapes) {
++
++            GeneralPath path = shape.makeIntoRenderPath(diagram, options);
++
++            SVGCommands commands = new SVGCommands(path);
++
++            String fill = "none";
++            String color = "white";
++
++            if(!shape.isStrokeDashed()) {
++
++                renderShadow(commands);
++
++                if(shape.getFillColor() != null)
++                    fill = colorToHex(shape.getFillColor());
++                else
++                    fill = colorToHex(Color.white);
++
++            }
++
++            renderPath(shape, commands, color, fill);
++
++            renderPath(shape, commands, colorToHex(shape.getStrokeColor()), "none");
++
++        }
++
++    }
++
++    private ArrayList<DiagramShape> findSorageShapes(ArrayList<DiagramShape> shapes) {
++
++        ArrayList<DiagramShape> storageShapes = new ArrayList<>();
++
++        for (DiagramShape shape : shapes) {
++
++            if(shape.getType() == DiagramShape.TYPE_STORAGE) {
++                storageShapes.add(shape);
++            }
++
++        }
++
++        return storageShapes;
++
++    }
++
++    private void renderRestOfShapes() {
++
++        ArrayList<DiagramShape> shapes = diagram.getAllDiagramShapes();
++        ArrayList<DiagramShape> pointMarkers = new ArrayList<>();
++
++        shapes.sort(new ShapeAreaComparator());
++
++        for (DiagramShape shape : shapes) {
++
++            if (shape.getType() == DiagramShape.TYPE_POINT_MARKER) {
++                pointMarkers.add(shape);
++                continue;
++            }
++            if (shape.getType() == DiagramShape.TYPE_STORAGE) {
++                continue;
++            }
++            if (shape.getType() == DiagramShape.TYPE_CUSTOM) {
++                //renderCustomShape(shape, g2);
++                //continue;
++                throw new RuntimeException("Not yet implemented");
++            }
++
++            if (shape.getPoints().isEmpty()) continue;
++
++            GeneralPath path = shape.makeIntoRenderPath(diagram, options);
++
++            SVGCommands commands = new SVGCommands(path);
++
++            renderPath(shape, commands);
++
++        }
++
++        renderPointMarkers(pointMarkers);
++
++    }
++
++    private void renderPath(DiagramShape shape, SVGCommands commands) {
++
++        String fill = "none";
++
++        if (shape.isClosed() && !shape.isStrokeDashed()) {
++
++            if(shape.getFillColor() != null)
++                fill = colorToHex(shape.getFillColor());
++            else
++                fill = "white";
++
++            if (shape.getType() == DiagramShape.TYPE_ARROWHEAD) {
++                renderPath(shape, commands, "none", fill);
++            }
++
++        } else if (shape.isStrokeDashed()) {
++            fill = "white";
++        }
++
++        if (shape.getType() != DiagramShape.TYPE_ARROWHEAD) {
++
++            if (commands.isClosed && !shape.isStrokeDashed()) {
++                renderShadow(commands);
++            }
++
++            renderPath(shape, commands, colorToHex(shape.getStrokeColor()), fill);
++
++        }
++
++    }
++
++    private void renderPath(DiagramShape shape, SVGCommands commands, String stroke, String fill) {
++
++        String path = "    <path stroke='" + stroke + "' ";
++
++        if (shape.isStrokeDashed())
++            path += dashStroke;
++        else
++            path += normalStroke;
++
++        path += "fill='" + fill + "' d='" + commands.svgPath + "' />\n";
++
++        layer2.append(path);
++
++    }
++
++    private void renderShadow(SVGCommands commands) {
++
++        if (!options.dropShadows()) return;
++
++        String path = "    <path stroke='gray' fill='gray' filter='url(#f2)' d='" + commands.svgPath + "' />\n";
++
++        layer1.append(path);
++
++    }
++
++    private void renderPointMarkers(ArrayList<DiagramShape> pointMarkers) {
++
++        for (DiagramShape shape : pointMarkers) {
++
++            GeneralPath path = shape.makeIntoRenderPath(diagram, options);
++
++            String fill = "white";
++
++            if(shape.getFillColor() != null)
++                fill = colorToHex(shape.getFillColor());
++
++            renderPath(shape, new SVGCommands(path), colorToHex(shape.getStrokeColor()), fill);
++
++        }
++
++    }
++
++    private String antialiasing() {
++        String rendering = options.performAntialias() ? "geometricPrecision" : "optimizeSpeed";
++        return String.format("shape-rendering='%s'", rendering);
++    }
++
++    private void backgroundLayer() {
++
++        Color color = options.getBackgroundColor();
++
++        if (color.getAlpha() == 0) return;
++
++        layer0.append (
++                String.format("    <rect x='0' y='0' width='%d' height='%d' style='fill: %s'/>\n",
++                        diagram.getWidth(),
++                        diagram.getHeight(),
++                        colorToHex(color)
++                )
++        );
++
++    }
++
++    private void renderTexts() {
++
++        for (DiagramText diagramText : diagram.getTextObjects()) {
++
++            Font font = diagramText.getFont();
++            String text = diagramText.getText();
++
++            int xPos = diagramText.getXPos();
++            int yPos = diagramText.getYPos();
++
++            renderText(text, xPos, yPos, font, diagramText.getColor());
++
++            if (diagramText.hasOutline()) {
++
++                Color outlineColor = diagramText.getOutlineColor();
++
++                renderText(text, xPos + 1, yPos, font, outlineColor);
++                renderText(text, xPos - 1, yPos, font, outlineColor);
++                renderText(text, xPos, yPos + 1, font, outlineColor);
++                renderText(text, xPos, yPos - 1, font, outlineColor);
++
++            }
++        }
++
++    }
++
++    private void renderText(String text, int xPos, int yPos, Font font, Color color) {
++
++        String TEXT_ELEMENT = "    <text x='%d' y='%d' font-family='%s' font-size='%d' stroke='none' fill='%s' >" +
++                "<![CDATA[%s]]></text>\n";
++
++        /* Prefer normal font weight
++        if (font.isBold()) {
++            style = " font-weight='bold'";
++        }
++        */
++
++        layer3.append(
++                String.format(TEXT_ELEMENT,
++                    xPos,
++                    yPos,
++                    options.getFontFamily(),
++                    font.getSize(),
++                    colorToHex(color),
++                    text
++                )
++        );
++
++    }
++
++    private static String colorToHex(Color color) {
++        return String.format("#%s%s%s",
++                toHex(color.getRed()),
++                toHex(color.getGreen()),
++                toHex(color.getBlue())
++        );
++    }
++
++    private static String toHex(int n) {
++        String hex = Integer.toHexString(n);
++
++        return n > 15 ? hex : "0" + hex;
++    }
++
++    private final Diagram diagram;
++    private final RenderingOptions options;
++
++    private final StringBuilder layer0 = new StringBuilder();
++    private final StringBuilder layer1 = new StringBuilder();
++    private final StringBuilder layer2 = new StringBuilder();
++    private final StringBuilder layer3 = new StringBuilder();
++
++    private final String normalStroke;
++    private final String dashStroke;
++
++    class SVGCommands {
++
++        final String svgPath;
++        final boolean isClosed;
++
++        SVGCommands(GeneralPath path) {
++
++            boolean closed = false;
++
++            float[] coords = new float[6];
++
++            StringBuilder builder = new StringBuilder();
++
++            PathIterator pathIterator = path.getPathIterator(null);
++
++            while (!pathIterator.isDone()) {
++
++                String commands;
++
++                switch(pathIterator.currentSegment(coords)) {
++                    case PathIterator.SEG_MOVETO:
++                        commands = "M" + coords[0] + " " + coords[1] + " ";
++                        break;
++                    case PathIterator.SEG_LINETO:
++                        commands = "L" + coords[0] + " " + coords[1] + " ";
++                        break;
++                    case PathIterator.SEG_QUADTO:
++                        commands = "Q" + coords[0] + " " + coords[1] + " " + coords[2] + " " + coords[3] + " ";
++                        break;
++                    case PathIterator.SEG_CUBICTO:
++                        commands = "C" + coords[0] + " " + coords[1] + " " + coords[2] + " " + coords[3] + " " + coords[4] + " " + coords[5] + " ";
++                        break;
++                    case PathIterator.SEG_CLOSE:
++                        commands = "z";
++                        closed = true;
++                        break;
++                    default:
++                        commands = "";
++                        break;
++                }
++
++                builder.append(commands);
++
++                pathIterator.next();
++
++            }
++
++            isClosed = closed;
++            svgPath = builder.toString();
++
++        }
++
++    }
++
++}
+diff --git a/src/org/stathissideris/ascii2image/graphics/SVGRenderer.java b/src/org/stathissideris/ascii2image/graphics/SVGRenderer.java
+new file mode 100644
+index 0000000..edf8947
+--- /dev/null
++++ b/src/org/stathissideris/ascii2image/graphics/SVGRenderer.java
+@@ -0,0 +1,18 @@
++package org.stathissideris.ascii2image.graphics;
++
++import org.stathissideris.ascii2image.core.RenderingOptions;
++
++/**
++ * Created by Jean Lazarou.
++ */
++public class SVGRenderer {
++
++    public String renderToImage(Diagram diagram, RenderingOptions options) {
++
++        SVGBuilder builder = new SVGBuilder(diagram, options);
++
++        return builder.build();
++
++    }
++
++}
+diff --git a/src/org/stathissideris/ascii2image/graphics/ShapeEdge.java b/src/org/stathissideris/ascii2image/graphics/ShapeEdge.java
+index c02b353..7ae5231 100644
+--- a/src/org/stathissideris/ascii2image/graphics/ShapeEdge.java
++++ b/src/org/stathissideris/ascii2image/graphics/ShapeEdge.java
+@@ -1,21 +1,20 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.graphics;
+@@ -66,7 +65,7 @@ public class ShapeEdge {
+ 	public void moveInwardsBy(float offset){
+ 		int type = this.getType();
+ 		if(type == TYPE_SLOPED)
+-			throw new RuntimeException("Cannot move a sloped egde inwards: "+this);
++			throw new RuntimeException("Cannot move a sloped edge inwards: "+this);
+ 		
+ 		float xOffset = 0;
+ 		float yOffset = 0;
+@@ -222,7 +221,7 @@ public class ShapeEdge {
+ 	
+ 	/**
+ 	 * if horizontal flips start and end points so that start is left of end
+-	 * if verical flips start and end points so that start is over of end
++	 * if vertical flips start and end points so that start is over of end
+ 	 *
+ 	 */
+ 	private void fixDirection(){
+@@ -231,7 +230,7 @@ public class ShapeEdge {
+ 		} else if(isVertical()) {
+ 			if(startPoint.y > endPoint.y) flipDirection();
+ 		} else {
+-			throw new RuntimeException("Cannot fix direction of sloped egde");
++			throw new RuntimeException("Cannot fix direction of sloped edge");
+ 		}
+ 	}
+ 	
+diff --git a/src/org/stathissideris/ascii2image/graphics/ShapePoint.java b/src/org/stathissideris/ascii2image/graphics/ShapePoint.java
+index 8ea9c17..e752ce2 100644
+--- a/src/org/stathissideris/ascii2image/graphics/ShapePoint.java
++++ b/src/org/stathissideris/ascii2image/graphics/ShapePoint.java
+@@ -1,25 +1,25 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.graphics;
+ 
++import java.awt.geom.Point2D.Float;
+ 
+ /**
+  * 
+diff --git a/src/org/stathissideris/ascii2image/text/AbstractCell.java b/src/org/stathissideris/ascii2image/text/AbstractCell.java
+index c3ae969..276bd72 100644
+--- a/src/org/stathissideris/ascii2image/text/AbstractCell.java
++++ b/src/org/stathissideris/ascii2image/text/AbstractCell.java
+@@ -1,21 +1,20 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.text;
+diff --git a/src/org/stathissideris/ascii2image/text/AbstractionGrid.java b/src/org/stathissideris/ascii2image/text/AbstractionGrid.java
+index c5bb56b..f226269 100644
+--- a/src/org/stathissideris/ascii2image/text/AbstractionGrid.java
++++ b/src/org/stathissideris/ascii2image/text/AbstractionGrid.java
+@@ -1,21 +1,20 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.text;
+@@ -147,15 +146,15 @@ public class AbstractionGrid {
+ 		return result;
+ 	}
+ 
+-	public ArrayList getDistinctShapes(){
+-		ArrayList result = new ArrayList();
++	public ArrayList<CellSet> getDistinctShapes(){
++		ArrayList<CellSet> result = new ArrayList<CellSet>();
+ 		
+ 		CellSet nonBlank = grid.getAllNonBlank();
+-		ArrayList distinct = nonBlank.breakIntoDistinctBoundaries();
++		ArrayList<CellSet> distinct = nonBlank.breakIntoDistinctBoundaries();
+ 		
+-		Iterator it = distinct.iterator();
++		Iterator<CellSet> it = distinct.iterator();
+ 		while (it.hasNext()) {
+-			CellSet set = (CellSet) it.next();
++			CellSet set = it.next();
+ 			AbstractionGrid temp = new AbstractionGrid(this.getWidth(), this.getHeight());
+ 			temp.fillCells(set);
+ 			result.add(temp.getAsTextGrid().getAllNonBlank());
+diff --git a/src/org/stathissideris/ascii2image/text/CellSet.java b/src/org/stathissideris/ascii2image/text/CellSet.java
+index fca9edf..0a40b8c 100644
+--- a/src/org/stathissideris/ascii2image/text/CellSet.java
++++ b/src/org/stathissideris/ascii2image/text/CellSet.java
+@@ -1,27 +1,28 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.text;
+ 
+ import java.util.ArrayList;
++import java.util.HashMap;
+ import java.util.HashSet;
++import java.util.Hashtable;
+ import java.util.Iterator;
+ import java.util.Set;
+ 
+@@ -121,7 +122,8 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 	public static CellSet copyCellSet(CellSet set) {
+ 		TextGrid grid = new TextGrid();
+ 		CellSet newSet = new CellSet();
+-		Iterator it = set.iterator();
++		
++		Iterator<TextGrid.Cell> it = set.iterator();
+ 		while (it.hasNext()) {
+ 			TextGrid.Cell cell = (TextGrid.Cell) it.next();
+ 			TextGrid.Cell newCell = grid.new Cell(cell);
+@@ -259,9 +261,6 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 		AbstractionGrid abstraction = new AbstractionGrid(subGrid, tempSet);
+ 		TextGrid temp = abstraction.getCopyOfInternalBuffer();
+ 
+-		TextGrid.Cell cell1 = null;
+-		TextGrid.Cell cell2 = null;
+-
+ 		int width = temp.getWidth();
+ 		int height = temp.getHeight();
+ 		
+@@ -290,9 +289,9 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 
+ 	public void translate(int dx, int dy){
+ 		typeIsValid = false;
+-		Iterator it = iterator();
++		Iterator<TextGrid.Cell> it = iterator();
+ 		while(it.hasNext()){
+-			TextGrid.Cell cCell = (TextGrid.Cell) it.next();
++			TextGrid.Cell cCell = it.next();
+ 			cCell.x += dx;
+ 			cCell.y += dy;
+ 		}	
+@@ -336,9 +335,9 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 	}
+ 
+ 	public TextGrid.Cell find(int x, int y){
+-		Iterator it = iterator();
++		Iterator<TextGrid.Cell> it = iterator();
+ 		while(it.hasNext()){
+-			TextGrid.Cell cCell = (TextGrid.Cell) it.next();
++			TextGrid.Cell cCell = it.next();
+ 			if(cCell.x == x && cCell.y == y) return cCell;
+ 		}
+ 		return null;		
+@@ -379,9 +378,9 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 	 * @return
+ 	 */
+ 	public TextGrid.Cell findCellNextTo(TextGrid.Cell cell){
+-		Iterator it = iterator();
++		Iterator<TextGrid.Cell> it = iterator();
+ 		while(it.hasNext()){
+-			TextGrid.Cell cCell = (TextGrid.Cell) it.next();
++			TextGrid.Cell cCell = it.next();
+ 			if(cCell.isNextTo(cell)) return cCell;
+ 		}
+ 		return null;
+@@ -396,9 +395,9 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 	public CellSet findCellsNextTo(TextGrid.Cell cell){
+ 		if(cell == null) throw new IllegalArgumentException("cell cannot be null");
+ 		CellSet set = new CellSet();
+-		Iterator it = iterator();
++		Iterator<TextGrid.Cell> it = iterator();
+ 		while(it.hasNext()){
+-			TextGrid.Cell cCell = (TextGrid.Cell) it.next();
++			TextGrid.Cell cCell = it.next();
+ 			if(cCell.isNextTo(cell)) set.add(cCell);
+ 		}
+ 		return set;
+@@ -406,18 +405,18 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 	
+ 	public void appendSet(CellSet set){
+ 		typeIsValid = false;
+-		Iterator it = set.iterator();
++		Iterator<TextGrid.Cell> it = set.iterator();
+ 		while(it.hasNext()){
+-			TextGrid.Cell cell = (TextGrid.Cell) it.next();
++			TextGrid.Cell cell = it.next();
+ 			if(find(cell) == null) add(cell);
+ 		}	
+ 	}
+ 	
+ 	public void subtractSet(CellSet set){
+ 		typeIsValid = false;
+-		Iterator it = set.iterator();
++		Iterator<TextGrid.Cell> it = set.iterator();
+ 		while(it.hasNext()){
+-			TextGrid.Cell cell = (TextGrid.Cell) it.next();
++			TextGrid.Cell cell = it.next();
+ 			TextGrid.Cell thisCell = find(cell);
+ 			if(thisCell != null) remove(thisCell);
+ 		}
+@@ -434,9 +433,9 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 	
+ 	public int getMaxX(){
+ 		int result = 0;
+-		Iterator it = iterator();
++		Iterator<TextGrid.Cell> it = iterator();
+ 		while(it.hasNext()){
+-			TextGrid.Cell cell = (TextGrid.Cell) it.next();
++			TextGrid.Cell cell = it.next();
+ 			if(cell.x > result) result = cell.x;
+ 		}
+ 		return result;
+@@ -444,9 +443,9 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 
+ 	public int getMinX(){
+ 		int result = Integer.MAX_VALUE;
+-		Iterator it = iterator();
++		Iterator<TextGrid.Cell> it = iterator();
+ 		while(it.hasNext()){
+-			TextGrid.Cell cell = (TextGrid.Cell) it.next();
++			TextGrid.Cell cell = it.next();
+ 			if(cell.x < result) result = cell.x;
+ 		}
+ 		return result;
+@@ -455,9 +454,9 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 
+ 	public int getMaxY(){
+ 		int result = 0;
+-		Iterator it = iterator();
++		Iterator<TextGrid.Cell> it = iterator();
+ 		while(it.hasNext()){
+-			TextGrid.Cell cell = (TextGrid.Cell) it.next();
++			TextGrid.Cell cell = it.next();
+ 			if(cell.y > result) result = cell.y;
+ 		}
+ 		return result;
+@@ -465,9 +464,9 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 
+ 	public int getMinY(){
+ 		int result = Integer.MAX_VALUE;
+-		Iterator it = iterator();
++		Iterator<TextGrid.Cell> it = iterator();
+ 		while(it.hasNext()){
+-			TextGrid.Cell cell = (TextGrid.Cell) it.next();
++			TextGrid.Cell cell = it.next();
+ 			if(cell.y < result) result = cell.y;
+ 		}
+ 		return result;
+@@ -487,16 +486,16 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 	}
+ 
+ 	
+-	public static ArrayList removeDuplicateSets(ArrayList list) {
+-		ArrayList uniqueSets = new ArrayList();
++	public static ArrayList<CellSet> removeDuplicateSets(ArrayList<CellSet> list) {
++		ArrayList<CellSet> uniqueSets = new ArrayList<CellSet>();
+ 
+-		Iterator it = list.iterator();
++		Iterator<CellSet> it = list.iterator();
+ 		while(it.hasNext()){
+-			CellSet set = (CellSet) it.next();
++			CellSet set = it.next();
+ 			boolean isOriginal = true;
+-			Iterator uniquesIt = uniqueSets.iterator();
++			Iterator<CellSet> uniquesIt = uniqueSets.iterator();
+ 			while(uniquesIt.hasNext()){
+-				CellSet uniqueSet = (CellSet) uniquesIt.next();
++				CellSet uniqueSet = uniquesIt.next();
+ 				if(set.equals(uniqueSet)){
+ 					isOriginal = false;
+ 				}
+@@ -512,8 +511,8 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 	 * 
+ 	 * @return ArrayList of distinct BoundarySetS
+ 	 */
+-	public ArrayList breakIntoDistinctBoundaries(TextGrid grid){
+-		ArrayList result;
++	public ArrayList<CellSet> breakIntoDistinctBoundaries(TextGrid grid){
++		ArrayList<CellSet> result;
+ 		
+ 		AbstractionGrid temp = new AbstractionGrid(grid, this);
+ 		result = temp.getDistinctShapes();
+@@ -526,8 +525,8 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 	 * 
+ 	 * @return ArrayList of distinct BoundarySetS
+ 	 */
+-	public ArrayList breakIntoDistinctBoundaries(){
+-		ArrayList result = new ArrayList();
++	public ArrayList<CellSet> breakIntoDistinctBoundaries(){
++		ArrayList<CellSet> result = new ArrayList<CellSet>();
+ 
+ 		//CellSet tempSet = copyCellSet(this);
+ 		//tempSet.translate( - this.getMinX() + 1, - this.getMinY() + 1);
+@@ -539,7 +538,7 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 		boundaryGrid.fillCellsWith(this, '*');
+ 
+ 		
+-		Iterator it = iterator();
++		Iterator<TextGrid.Cell> it = iterator();
+ 		while(it.hasNext()){
+ 			TextGrid.Cell cell = (TextGrid.Cell) it.next();
+ 			if(boundaryGrid.isBlank(cell.x, cell.y)) continue;
+@@ -579,8 +578,8 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 	 * @return a list of boundaries that are either open or closed but not mixed
+ 	 * and they are equivalent to the <code>this</code>
+ 	 */
+-	public ArrayList breakTrulyMixedBoundaries(TextGrid grid){
+-		ArrayList result = new ArrayList();
++	public ArrayList<CellSet> breakTrulyMixedBoundaries(TextGrid grid){
++		ArrayList<CellSet> result = new ArrayList<CellSet>();
+ 		CellSet visitedEnds = new CellSet();
+ 		
+ 		TextGrid workGrid = TextGrid.makeSameSizeAs(grid);
+@@ -591,7 +590,7 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 			workGrid.printDebug();
+ 		}
+ 
+-		Iterator it = iterator();
++		Iterator<TextGrid.Cell> it = iterator();
+ 		while(it.hasNext()){
+ 			TextGrid.Cell start = (TextGrid.Cell) it.next();
+ 			if(workGrid.isLinesEnd(start) && !visitedEnds.contains(start)){
+@@ -641,9 +640,7 @@ public class CellSet implements Iterable<TextGrid.Cell> {
+ 
+ 		//substract all boundary sets from this CellSet
+ 		CellSet whatsLeft = new CellSet(this);
+-		it = result.iterator();
+-		while (it.hasNext()) {
+-			CellSet set = (CellSet) it.next();
++		for(CellSet set : result) {
+ 			whatsLeft.subtractSet(set);
+ 			if(DEBUG) set.printAsGrid();
+ 		}
+diff --git a/src/org/stathissideris/ascii2image/text/GridPattern.java b/src/org/stathissideris/ascii2image/text/GridPattern.java
+index 0a53a39..bb96452 100644
+--- a/src/org/stathissideris/ascii2image/text/GridPattern.java
++++ b/src/org/stathissideris/ascii2image/text/GridPattern.java
+@@ -1,21 +1,20 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.text;
+@@ -126,7 +125,7 @@ public class GridPattern extends TextGrid {
+ 		if (DEBUG)
+ 			System.out.println("Trying to match:");
+ 		if(!usesStandardSyntax){
+-			Iterator<StringBuffer> it = getRows().iterator();
++			Iterator<StringBuilder> it = getRows().iterator();
+ 			while (it.hasNext()) {
+ 				String row = it.next().toString();
+ 				regExps.add(Pattern.compile(makeRegExp(row)));
+@@ -134,7 +133,7 @@ public class GridPattern extends TextGrid {
+ 					System.out.println(row+" becomes "+makeRegExp(row));
+ 			}			
+ 		} else {
+-			Iterator<StringBuffer> it = getRows().iterator();
++			Iterator<StringBuilder> it = getRows().iterator();
+ 			while (it.hasNext()) {
+ 				String row = it.next().toString();
+ 				regExps.add(Pattern.compile(row));
+@@ -152,7 +151,7 @@ public class GridPattern extends TextGrid {
+ 			} else if(c == '|') {
+ 				result.append("[|:]");
+ 			} else if(c == '-') {
+-				result.append("-");
++				result.append("[-=]");
+ 			} else if(c == '!') {
+ 				result.append("[^-=\\/\\\\+|:]");
+ 			} else if(c == 'b') {
+diff --git a/src/org/stathissideris/ascii2image/text/GridPatternGroup.java b/src/org/stathissideris/ascii2image/text/GridPatternGroup.java
+index 96b8613..0d8e184 100644
+--- a/src/org/stathissideris/ascii2image/text/GridPatternGroup.java
++++ b/src/org/stathissideris/ascii2image/text/GridPatternGroup.java
+@@ -1,21 +1,20 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.text;
+diff --git a/src/org/stathissideris/ascii2image/text/StringUtils.java b/src/org/stathissideris/ascii2image/text/StringUtils.java
+index 4a32be7..e753245 100644
+--- a/src/org/stathissideris/ascii2image/text/StringUtils.java
++++ b/src/org/stathissideris/ascii2image/text/StringUtils.java
+@@ -1,21 +1,20 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.text;
+@@ -91,7 +90,7 @@ public class StringUtils {
+ 		indexes[0] = 0;		
+ 		int k = 1;
+ 
+-		//then we find the indexes (we have ckecked the first char already)
++		//then we find the indexes (we have checked the first char already)
+ 		for(int j =1; j < string.length(); j++){
+ 			if(Character.isUpperCase(string.charAt(j))) indexes[k++] = j;
+ 		}
+diff --git a/src/org/stathissideris/ascii2image/text/TextGrid.java b/src/org/stathissideris/ascii2image/text/TextGrid.java
+index 40a635f..1ead278 100644
+--- a/src/org/stathissideris/ascii2image/text/TextGrid.java
++++ b/src/org/stathissideris/ascii2image/text/TextGrid.java
+@@ -1,41 +1,33 @@
+-/*
+- * DiTAA - Diagrams Through Ascii Art
++/**
++ * ditaa - Diagrams Through Ascii Art
+  * 
+- * Copyright (C) 2004 Efstathios Sideris
++ * Copyright (C) 2004-2011 Efstathios Sideris
+  *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
++ * ditaa is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as 
++ * published by the Free Software Foundation, either version 3 of
++ * the License, or (at your option) any later version.
+  *
+- * This program is distributed in the hope that it will be useful,
++ * ditaa is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
++ * GNU Lesser General Public License for more details.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with ditaa.  If not, see <http://www.gnu.org/licenses/>.
+  *   
+  */
+ package org.stathissideris.ascii2image.text;
+ 
+ import java.awt.Color;
+-import java.io.File;
+-import java.io.FileNotFoundException;
+-import java.io.IOException;
+-import java.io.UnsupportedEncodingException;
+-import java.util.ArrayList;
+-import java.util.Collection;
+-import java.util.HashMap;
+-import java.util.HashSet;
+-import java.util.Iterator;
+-import java.util.Stack;
++import java.io.*;
++import java.util.*;
+ import java.util.regex.Matcher;
+ import java.util.regex.Pattern;
+ 
+ import org.stathissideris.ascii2image.core.FileUtils;
+ import org.stathissideris.ascii2image.core.ProcessingOptions;
++import org.stathissideris.ascii2image.graphics.CustomShapeDefinition;
+ 
+ 
+ /**
+@@ -46,7 +38,7 @@ public class TextGrid {
+ 
+ 	private static final boolean DEBUG = false;
+ 
+-	private ArrayList<StringBuffer> rows;
++	private ArrayList<StringBuilder> rows;
+ 
+ 	private static char[] boundaries = {'/', '\\', '|', '-', '*', '=', ':'};
+ 	private static char[] undisputableBoundaries = {'|', '-', '*', '=', ':'};
+@@ -113,14 +105,14 @@ public class TextGrid {
+ 
+ 
+ 	public TextGrid(){
+-		rows = new ArrayList<StringBuffer>();
++		rows = new ArrayList<StringBuilder>();
+ 	}
+ 	
+ 	public TextGrid(int width, int height){
+ 		String space = StringUtils.repeatString(" ", width);
+-		rows = new ArrayList<StringBuffer>();
++		rows = new ArrayList<StringBuilder>();
+ 		for(int i = 0; i < height; i++)
+-			rows.add(new StringBuffer(space));
++			rows.add(new StringBuilder(space));
+ 	}
+ 
+ 	public static TextGrid makeSameSizeAs(TextGrid grid){
+@@ -129,9 +121,9 @@ public class TextGrid {
+ 
+ 
+ 	public TextGrid(TextGrid otherGrid){
+-		rows = new ArrayList<StringBuffer>();
+-		for(StringBuffer row : otherGrid.getRows()) {
+-			rows.add(new StringBuffer(row));
++		rows = new ArrayList<StringBuilder>();
++		for(StringBuilder row : otherGrid.getRows()) {
++			rows.add(new StringBuilder(row));
+ 		}		
+ 	}
+ 
+@@ -140,7 +132,7 @@ public class TextGrid {
+ 		int height = getHeight();
+ 		rows.clear();
+ 		for(int i = 0; i < height; i++)
+-			rows.add(new StringBuffer(blank)); 
++			rows.add(new StringBuilder(blank)); 
+ 	}
+ 
+ //	duplicated code due to lots of hits to this function
+@@ -161,14 +153,14 @@ public class TextGrid {
+ 		return rows.get(cell.y).charAt(cell.x);
+ 	}
+ 	
+-	public StringBuffer getRow(int y){
++	public StringBuilder getRow(int y){
+ 		return rows.get(y);
+ 	}
+ 
+ 	public TextGrid getSubGrid(int x, int y, int width, int height){
+ 		TextGrid grid = new TextGrid(width, height);
+ 		for(int i = 0; i < height; i++){
+-			grid.setRow(i, new StringBuffer(getRow(y + i).subSequence(x, x + width)));
++			grid.setRow(i, new StringBuilder(getRow(y + i).subSequence(x, x + width)));
+ 		}
+ 		return grid;
+ 	}
+@@ -217,17 +209,17 @@ public class TextGrid {
+ 
+ 	public void set(int x, int y, char c){
+ 		if(x > getWidth() - 1 || y > getHeight() - 1) return;
+-		StringBuffer row = rows.get(y);
++		StringBuilder row = rows.get(y);
+ 		row.setCharAt(x, c);
+ 	}
+ 	
+ 	public void setRow(int y, String row){
+ 		if(y > getHeight() || row.length() != getWidth())
+ 			throw new IllegalArgumentException("setRow out of bounds or string wrong size");
+-		rows.set(y, new StringBuffer(row));
++		rows.set(y, new StringBuilder(row));
+ 	}
+ 
+-	public void setRow(int y, StringBuffer row){
++	public void setRow(int y, StringBuilder row){
+ 		if(y > getHeight() || row.length() != getWidth())
+ 			throw new IllegalArgumentException("setRow out of bounds or string wrong size");
+ 		rows.set(y, row);
+@@ -243,7 +235,7 @@ public class TextGrid {
+ 	}
+ 
+ 	public void printDebug(){
+-		Iterator<StringBuffer> it = rows.iterator();
++		Iterator<StringBuilder> it = rows.iterator();
+ 		int i = 0;
+ 		System.out.println(
+ 			"    "
+@@ -258,8 +250,8 @@ public class TextGrid {
+ 	}
+ 
+ 	public String getDebugString(){
+-		StringBuffer buffer = new StringBuffer();
+-		Iterator<StringBuffer> it = rows.iterator();
++		StringBuilder buffer = new StringBuilder();
++		Iterator<StringBuilder> it = rows.iterator();
+ 		int i = 0;
+ 		buffer.append(
+ 			"    "
+@@ -397,7 +389,7 @@ public class TextGrid {
+ 					humanCode = "c" + humanCode;
+ 					hexCode = "c" + hexCode;
+ 					row = row.replaceAll(humanCode, hexCode);
+-					rows.set(y, new StringBuffer(row)); //TODO: this is not the most efficient way to do this
++					rows.set(y, new StringBuilder(row)); //TODO: this is not the most efficient way to do this
+ 					row = rows.get(y).toString();
+ 				}
+ 			}
+@@ -406,7 +398,7 @@ public class TextGrid {
+ 
+ 
+ 	/**
+-	 * Replace all occurences of c1 with c2
++	 * Replace all occurrences of c1 with c2
+ 	 * 
+ 	 * @param c1
+ 	 * @param c2
+@@ -612,7 +604,7 @@ public class TextGrid {
+ 		}
+ 		
+ 		//remove in two stages, because decision of
+-		//isBoundary depends on contants of surrounding
++		//isBoundary depends on content of surrounding
+ 		//cells 
+ 		Iterator it = toBeRemoved.iterator();
+ 		while(it.hasNext()){
+@@ -621,8 +613,8 @@ public class TextGrid {
+ 		}
+ 	}
+ 
+-	public ArrayList findArrowheads(){
+-		ArrayList result = new ArrayList();
++	public ArrayList<Cell> findArrowheads(){
++		ArrayList<Cell> result = new ArrayList<Cell>();
+ 		int width = getWidth();
+ 		int height = getHeight();
+ 		for(int yi = 0; yi < height; yi++){
+@@ -738,7 +730,7 @@ public class TextGrid {
+ 		char c = get(cell.x, cell.y);
+ 		if(0 == c) return false;
+ 		if('+' == c || '\\' == c || '/' == c){
+-			// System.out.print("");
++			System.out.print("");
+ 			if(
+ 			       isIntersection(cell) 
+ 				|| isCorner(cell)
+@@ -1132,7 +1124,7 @@ public class TextGrid {
+ 		if(isLine(cell)) return followLine(cell, blocked);
+ 		if(isStub(cell)) return followStub(cell, blocked);
+ 		if(isCrossOnLine(cell)) return followCrossOnLine(cell, blocked);
+-		System.err.println("Umbiguous input at position "+cell+":");
++		System.err.println("Ambiguous input at position "+cell+":");
+ 		TextGrid subGrid = getTestingSubGrid(cell);
+ 		subGrid.printDebug();
+ 		throw new RuntimeException("Cannot follow cell "+cell+": cannot determine cell type");
+@@ -1287,15 +1279,6 @@ public class TextGrid {
+ 		return true;
+ 	}
+ 	
+-//	@Override
+-//	public int hashCode() {
+-//		int h = 0;
+-//		for(StringBuffer row : rows) {
+-//			h += row.hashCode();
+-//		}
+-//		return h;
+-//	}
+-	
+ 	/**
+ 	 * Fills all the cells in <code>cells</code> with <code>c</code>
+ 	 * 
+@@ -1522,34 +1505,39 @@ public class TextGrid {
+ 	{
+ 				
+ 		String encoding = (options == null) ? null : options.getCharacterEncoding();
+-		ArrayList<StringBuffer> lines = new ArrayList<StringBuffer>();
+-		String[] linesArray = FileUtils.readFile(new File(filename), encoding).split("(\r)?\n");
++		ArrayList<StringBuilder> lines = new ArrayList<StringBuilder>();
++		InputStream is;
++		if ("-".equals(filename))
++		    is = System.in;
++		else
++		    is = new FileInputStream(filename);
++		String[] linesArray = FileUtils.readFile(is, filename, encoding).split("(\r)?\n");
+ 		for(int i = 0; i  < linesArray.length; i++)
+-			lines.add(new StringBuffer(linesArray[i]));
++			lines.add(new StringBuilder(linesArray[i]));
+ 		
+ 		return initialiseWithLines(lines, options);
+ 	}
+ 
+ 	public boolean initialiseWithText(String text, ProcessingOptions options) throws UnsupportedEncodingException {
+ 
+-		ArrayList<StringBuffer> lines = new ArrayList<StringBuffer>();
++		ArrayList<StringBuilder> lines = new ArrayList<StringBuilder>();
+ 		String[] linesArray = text.split("(\r)?\n");
+ 		for(int i = 0; i  < linesArray.length; i++)
+-			lines.add(new StringBuffer(linesArray[i]));
++			lines.add(new StringBuilder(linesArray[i]));
+ 
+ 		return initialiseWithLines(lines, options);
+ 	}
+ 
+-	public boolean initialiseWithLines(ArrayList<StringBuffer> lines, ProcessingOptions options) throws UnsupportedEncodingException {
++	public boolean initialiseWithLines(ArrayList<StringBuilder> lines, ProcessingOptions options) throws UnsupportedEncodingException {
+ 
+ 		//remove blank rows at the bottom
+ 		boolean done = false;
+ 		int i;
+-		for(i = lines.size() - 1; !done; i--){
+-			StringBuffer row = lines.get(i);
++		for(i = lines.size() - 1; i >= 0 && !done; i--){
++			StringBuilder row = lines.get(i);
+ 			if(!StringUtils.isBlank(row.toString())) done = true;
+ 		}
+-		rows = new ArrayList<StringBuffer>(lines.subList(0, i + 2));
++		rows = new ArrayList<StringBuilder>(lines.subList(0, i + 2));
+ 
+ 		if(options != null) fixTabs(options.getTabSize());
+ 		else fixTabs(options.DEFAULT_TAB_SIZE);
+@@ -1565,9 +1553,9 @@ public class TextGrid {
+ 		int index = 0;
+ 		
+ 		String encoding = null;
+-		//if(options != null) encoding = options.getCharacterEncoding();
++		if(options != null) encoding = options.getCharacterEncoding();
+ 		
+-		Iterator<StringBuffer> it = rows.iterator();
++		Iterator<StringBuilder> it = rows.iterator();
+ 		while(it.hasNext()){
+ 			String row = it.next().toString();
+ 			if(encoding != null){
+@@ -1575,25 +1563,25 @@ public class TextGrid {
+ 				row = new String(bytes, encoding);
+ 			}
+ 			if(row.length() > maxLength) maxLength = row.length();
+-			rows.set(index, new StringBuffer(row));
++			rows.set(index, new StringBuilder(row));
+ 			index++;
+ 		}
+ 
+ 		it = rows.iterator();
+-		ArrayList<StringBuffer> newRows = new ArrayList<StringBuffer>();
++		ArrayList<StringBuilder> newRows = new ArrayList<StringBuilder>();
+ 		//TODO: make the following depend on blankBorderSize
+ 		
+-		StringBuffer topBottomRow =
+-			new StringBuffer(StringUtils.repeatString(" ", maxLength + blankBorderSize * 2));
++		StringBuilder topBottomRow =
++			new StringBuilder(StringUtils.repeatString(" ", maxLength + blankBorderSize * 2));
+ 		
+ 		newRows.add(topBottomRow);
+ 		newRows.add(topBottomRow);
+ 		while(it.hasNext()){
+-			StringBuffer row = it.next();
++			StringBuilder row = it.next();
+ 			
+ 			if(row.length() < maxLength) {
+ 				String borderString = StringUtils.repeatString(" ", blankBorderSize);
+-				StringBuffer newRow = new StringBuffer();
++				StringBuilder newRow = new StringBuilder();
+ 				
+ 				newRow.append(borderString);
+ 				newRow.append(row);
+@@ -1602,7 +1590,7 @@ public class TextGrid {
+ 				
+ 				newRows.add(newRow);
+ 			} else { //TODO: why is the following line like that?
+-				newRows.add(new StringBuffer("  ").append(row).append("  "));
++				newRows.add(new StringBuilder("  ").append(row).append("  "));
+ 			}
+ 		}
+ 		//TODO: make the following depend on blankBorderSize
+@@ -1619,11 +1607,11 @@ public class TextGrid {
+ 	private void fixTabs(int tabSize){
+ 
+ 		int rowIndex = 0;
+-		Iterator<StringBuffer> it = rows.iterator();
++		Iterator<StringBuilder> it = rows.iterator();
+ 
+ 		while(it.hasNext()){
+ 			String row = it.next().toString();
+-			StringBuffer newRow = new StringBuffer();
++			StringBuilder newRow = new StringBuilder();
+ 			
+ 			char[] chars = row.toCharArray();
+ 			for(int i = 0; i < chars.length; i++){
+@@ -1647,7 +1635,7 @@ public class TextGrid {
+ 	/**
+ 	 * @return
+ 	 */
+-	protected ArrayList<StringBuffer> getRows() {
++	protected ArrayList<StringBuilder> getRows() {
+ 		return rows;
+ 	}
+ 	
