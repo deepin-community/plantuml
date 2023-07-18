@@ -1,0 +1,7 @@
+plantuml (1:1.2018.13+ds-1) unstable; urgency=medium
+
+  From this release on, PlantUML in Debian no longer supports Easter eggs,
+  XEarth diagrams, Sudoku, and no longer comes with built-in FTP or
+  Telnet servers.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Thu, 29 Nov 2018 22:21:35 +0100

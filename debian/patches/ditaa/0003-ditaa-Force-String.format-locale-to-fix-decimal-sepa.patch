@@ -1,0 +1,101 @@
+From: Tomas Janousek <tomi@nomi.cz>
+Date: Wed, 20 Nov 2019 23:58:01 +0100
+Subject: ditaa: Force String.format locale to fix decimal separator
+
+---
+ .../ascii2image/graphics/SVGBuilder.java           | 24 ++++++++++++++--------
+ 1 file changed, 16 insertions(+), 8 deletions(-)
+
+diff --git a/src/org/stathissideris/ascii2image/graphics/SVGBuilder.java b/src/org/stathissideris/ascii2image/graphics/SVGBuilder.java
+index 7be7cd5..08432b4 100644
+--- a/src/org/stathissideris/ascii2image/graphics/SVGBuilder.java
++++ b/src/org/stathissideris/ascii2image/graphics/SVGBuilder.java
+@@ -8,6 +8,7 @@ import java.awt.*;
+ import java.awt.geom.GeneralPath;
+ import java.awt.geom.PathIterator;
+ import java.util.ArrayList;
++import java.util.Locale;
+ 
+ /**
+  * Created by Jean Lazarou.
+@@ -22,10 +23,10 @@ public class SVGBuilder {
+         float dashInterval = Math.min(diagram.getCellWidth(), diagram.getCellHeight()) / 2;
+         float strokeWeight = diagram.getMinimumOfCellDimension() / 10;
+ 
+-        normalStroke = String.format("stroke-width='%f' stroke-linecap='round' stroke-linejoin='round' ",
++        normalStroke = String.format(Locale.ROOT, "stroke-width='%f' stroke-linecap='round' stroke-linejoin='round' ",
+                 strokeWeight);
+ 
+-        dashStroke = String.format(
++        dashStroke = String.format(Locale.ROOT,
+                 "stroke-width='%f' stroke-dasharray='%f,%f' stroke-miterlimit='0' " +
+                         "stroke-linecap='butt' stroke-linejoin='round' ",
+                 strokeWeight, dashInterval, dashInterval);
+@@ -50,7 +51,7 @@ public class SVGBuilder {
+                 "  </defs>\n";
+ 
+         if (options.getFontURL() == null) {
+-            return String.format(DEFS, "");
++            return String.format(Locale.ROOT, DEFS, "");
+         }
+ 
+         String fontStyle =
+@@ -61,7 +62,7 @@ public class SVGBuilder {
+             "      }\n" +
+             "    </style>\n";
+ 
+-        return String.format(DEFS, String.format(fontStyle, options.getFontFamily(), options.getFontURL()));
++        return String.format(Locale.ROOT, DEFS, String.format(Locale.ROOT, fontStyle, options.getFontFamily(), options.getFontURL()));
+ 
+     }
+ 
+@@ -77,6 +78,7 @@ public class SVGBuilder {
+                 "    version='1.0'>\n";
+ 
+         return String.format(
++                Locale.ROOT,
+                 HEADER,
+                 diagram.getWidth(),
+                 diagram.getHeight(),
+@@ -265,7 +267,7 @@ public class SVGBuilder {
+ 
+     private String antialiasing() {
+         String rendering = options.performAntialias() ? "geometricPrecision" : "optimizeSpeed";
+-        return String.format("shape-rendering='%s'", rendering);
++        return String.format(Locale.ROOT, "shape-rendering='%s'", rendering);
+     }
+ 
+     private void backgroundLayer() {
+@@ -275,7 +277,9 @@ public class SVGBuilder {
+         if (color.getAlpha() == 0) return;
+ 
+         layer0.append (
+-                String.format("    <rect x='0' y='0' width='%d' height='%d' style='fill: %s'/>\n",
++                String.format(
++                        Locale.ROOT,
++                        "    <rect x='0' y='0' width='%d' height='%d' style='fill: %s'/>\n",
+                         diagram.getWidth(),
+                         diagram.getHeight(),
+                         colorToHex(color)
+@@ -322,7 +326,9 @@ public class SVGBuilder {
+         */
+ 
+         layer3.append(
+-                String.format(TEXT_ELEMENT,
++                String.format(
++                    Locale.ROOT,
++                    TEXT_ELEMENT,
+                     xPos,
+                     yPos,
+                     options.getFontFamily(),
+@@ -335,7 +341,9 @@ public class SVGBuilder {
+     }
+ 
+     private static String colorToHex(Color color) {
+-        return String.format("#%s%s%s",
++        return String.format(
++                Locale.ROOT,
++                "#%s%s%s",
+                 toHex(color.getRed()),
+                 toHex(color.getGreen()),
+                 toHex(color.getBlue())

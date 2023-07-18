@@ -1,0 +1,23 @@
+From: Andrej Shadura <andrewsh@debian.org>
+Date: Wed, 8 Mar 2023 11:32:05 +0100
+Subject: Specify Class-Path to the libraries needed to support PDF (#807928).
+
+Forwarded: not-needed
+Last-Update: 2020-03-10
+---
+ build.xml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/build.xml b/build.xml
+index ab763e6..ccda508 100644
+--- a/build.xml
++++ b/build.xml
+@@ -74,7 +74,7 @@
+ 		<jar jarfile="plantuml.jar" basedir="build">
+ 			<manifest>
+ 				<attribute name="Main-Class" value="net.sourceforge.plantuml.Run" />
+-				<attribute name="Class-Path" value="avalon-framework-4.2.0.jar batik-all-1.7.jar commons-io-1.3.1.jar commons-logging-1.0.4.jar fop.jar xml-apis-ext-1.3.04.jar xmlgraphics-commons-1.4.jar jlatexmath-minimal-1.0.3.jar jlm_cyrillic.jar jlm_greek.jar vizjs.jar j2v8_win32_x86_64-3.1.6.jar j2v8_linux_x86_64-3.1.6.jar j2v8_macosx_x86_64-3.1.6.jar ditaa0_9.jar" />
++				<attribute name="Class-Path" value="/usr/share/java/avalon-framework.jar /usr/share/java/batik-all.jar /usr/share/java/commons-io.jar /usr/share/java/commons-logging.jar /usr/share/java/fop.jar /usr/share/java/xml-apis-ext.jar /usr/share/java/xmlgraphics-commons.jar /usr/share/java/jlatexmath.jar" />
+ 			</manifest>
+ 		</jar>
+ 		<delete dir="build" />

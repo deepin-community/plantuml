@@ -1,0 +1,11 @@
+Test-Command: debian/tests/run-plantuml
+Features: test-name=headless
+Depends: @
+
+Test-Command: xvfb-run debian/tests/run-plantuml
+Features: test-name=headful
+Depends: @, default-jre, xvfb, xauth
+
+Test-Command: xvfb-run debian/tests/run-plantuml
+Features: test-name=headful-on-x
+Depends: @, xvfb, xauth
