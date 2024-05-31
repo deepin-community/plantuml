@@ -18,16 +18,18 @@ Vcs-Browser: https://salsa.debian.org/debian/plantuml
 Package: plantuml
 Architecture: all
 Depends:
- ${misc:Depends},
  default-jre-headless,
- libfop-java,
- libbatik-java,
- libjlatexmath-java,
  libavalon-framework-java,
+ libbatik-java,
  libcommons-io-java,
  libcommons-logging-java,
+ libfop-java,
+ libjlatexmath-java,
  libxml-commons-external-java,
- libxmlgraphics-commons-java
+ libxmlgraphics-commons-java,
+ libfontconfig1,
+ ${fontmanager:Depends},
+ ${misc:Depends},
 Recommends: graphviz
 Description: text-to-UML converter
  PlantUML is a program allowing to draw UML diagrams, using a simple

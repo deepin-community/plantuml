@@ -1,3 +1,17 @@
+plantuml (1:1.2020.2+ds-5) unstable; urgency=medium
+
+  * Add missing libfontconfig1 dependency (Closes: #1068999)
+  * Sort plantuml dependencies, move font stuff to the end.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Tue, 23 Apr 2024 10:34:03 +0200
+
+plantuml (1:1.2020.2+ds-4) unstable; urgency=medium
+
+  * Explicitly depend on fontmanager dependencies as headless JRE
+    no longer does (Closes: #1068437, #1067333).
+
+ -- Andrej Shadura <andrewsh@debian.org>  Fri, 05 Apr 2024 10:40:17 +0200
+
 plantuml (1:1.2020.2+ds-3) unstable; urgency=medium
 
   [ Tomas Janousek ]

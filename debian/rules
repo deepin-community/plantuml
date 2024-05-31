@@ -15,4 +15,8 @@ override_dh_auto_build: debian/plantuml.1
 override_dh_auto_install:
 	install -m 755 $(CURDIR)/debian/plantuml.sh $(CURDIR)/debian/plantuml/usr/bin/plantuml
 
+execute_before_dh_gencontrol:
+	dpkg-shlibdeps -pfontmanager -xlibc6 -xlibstdc++6 -xlibgcc-s1 \
+		-Tdebian/plantuml.substvars /usr/lib/jvm/default-java/lib/libfontmanager.so
+
 .PHONY: override_dh_auto_clean override_dh_auto_build override_dh_auto_install
