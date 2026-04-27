@@ -1,3 +1,9 @@
+plantuml (1:1.2020.2+ds-3deepin1) unstable; urgency=medium
+
+  * CVE-2026-0858: Fix stored XSS in SVG export for GraphViz diagrams
+
+ -- deepin-ci-robot <packages@deepin.org>  Mon, 27 Apr 2026 14:56:42 +0800
+
 plantuml (1:1.2020.2+ds-3) unstable; urgency=medium
 
   [ Tomas Janousek ]
